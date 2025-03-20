@@ -71,7 +71,7 @@ namespace AdnmbBackup_gui
             System.Diagnostics.Process.Start("https://www.coldthunder11.com/index.php/2020/03/19/%e5%a6%82%e4%bd%95%e8%8e%b7%e5%8f%96a%e5%b2%9b%e7%9a%84%e9%a5%bc%e5%b9%b2/");
         }
 
-        private void button1_Click(object sender, EventArgs e)
+        private async void button1_Click(object sender, EventArgs e)
         {
             string id = textBox1.Text;
             if (id == string.Empty) return;
@@ -155,21 +155,12 @@ namespace AdnmbBackup_gui
                     var replyCount = int.Parse(fpjson["ReplyCount"].ToString());
                     int pageCount = replyCount / 19;
                     if (replyCount % 19 != 0) pageCount++;
-                    for (int page = pageCountInCache; page <= pageCount; page++)
+                    if (pageCount >= pageCountInCache)
                     {
-                        label4.Text = "第" + page + "页";
-                        t = http.GetAsync(url + "?id=" + id + "&page=" + page);
-                        t.Wait();
-                        result = t.Result;
-                        t2 = result.Content.ReadAsByteArrayAsync();
-                        t2.Wait();
-                        bytes = t2.Result;
-                        str = ReadGzip(bytes);
-                        var jo = JsonConvert.DeserializeObject<JObject>(str);
-                        JArray ja = jo["Replies"].ToObject<JArray>();
-                        foreach (var item in ja)
+                        label4.Text = "正在获取多个页面...";
+                        JArray additionalReplies = await FetchPagesInParallelAsync(http, url, id, pageCountInCache, pageCount);
+                        foreach (var item in additionalReplies)
                         {
-                            if (item["user_hash"].ToString() == "Tips") continue;
                             contentJA.Add(item);
                         }
                     }
@@ -217,23 +208,13 @@ namespace AdnmbBackup_gui
                     int pageCount = replyCount / 19;
                     if (replyCount % 19 != 0) pageCount++;
                     JArray contentJA = fpjson["Replies"].ToObject<JArray>();
-                    for (var page = 2; page <= pageCount; page++)
+                    if (pageCount > 1)
                     {
-                        label4.Text = "正在获取第" + page + "页";
-                        t = http.GetAsync(url + "?id=" + id + "&page=" + page);
-                        t.Wait();
-                        result = t.Result;
-                        t2 = result.Content.ReadAsByteArrayAsync();
-                        t2.Wait();
-                        bytes = t2.Result;
-                        str = ReadGzip(bytes);
-                        var jo = JsonConvert.DeserializeObject<JObject>(str);
-                        JArray ja = jo["Replies"].ToObject<JArray>();
-                        var rpcount = ja.Count;
-                        for (int j = 0; j < rpcount; j++)
+                        label4.Text = "正在获取多个页面...";
+                        JArray additionalReplies = await FetchPagesInParallelAsync(http, url, id, 2, pageCount);
+                        foreach (var item in additionalReplies)
                         {
-                            if (ja[j]["user_hash"].ToString() == "Tips") continue;
-                            contentJA.Add(ja[j]);
+                            contentJA.Add(item);
                         }
                     }
                     label4.Text = "完成";
@@ -259,6 +240,60 @@ namespace AdnmbBackup_gui
             ConvertToMarkdown(id);
             ConvertToMarkdownPoOnly(id);
         }
+
+        private async Task<JArray> FetchPagesInParallelAsync(HttpClient http, string url, string id, int startPage, int endPage)
+        {
+            JArray resultArray = new JArray();
+            var tasks = new List<Task<Tuple<int, JArray>>>();
+            using (SemaphoreSlim semaphore = new SemaphoreSlim(16)) // limit to 16 concurrent tasks
+            {
+                for (int page = startPage; page <= endPage; page++)
+                {
+                    int pageNumber = page; // capture page number locally
+                    tasks.Add(Task.Run(async () =>
+                    {
+                        await semaphore.WaitAsync();
+                        try
+                        {
+                            return await FetchPageAsync(http, url, id, pageNumber);
+                        }
+                        finally
+                        {
+                            semaphore.Release();
+                        }
+                    }));
+                }
+                var results = await Task.WhenAll(tasks);
+                foreach (var result in results.OrderBy(r => r.Item1))
+                {
+                    foreach (var item in result.Item2)
+                    {
+                        if (item["user_hash"].ToString() == "Tips") continue;
+                        resultArray.Add(item);
+                    }
+                }
+            }
+            return resultArray;
+        }
+
+        private async Task<Tuple<int, JArray>> FetchPageAsync(HttpClient http, string url, string id, int page)
+        {
+            try
+            {
+                var response = await http.GetAsync(url + "?id=" + id + "&page=" + page);
+                var bytes = await response.Content.ReadAsByteArrayAsync();
+                string str = ReadGzip(bytes);
+                var jo = JsonConvert.DeserializeObject<JObject>(str);
+                JArray ja = jo["Replies"].ToObject<JArray>();
+                return Tuple.Create(page, ja);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error fetching page {page}: {ex.Message}");
+                return Tuple.Create(page, new JArray());
+            }
+        }
+
         private void linkLabel2_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
         {
             System.Diagnostics.Process.Start("https://github.com/Ovler-Young/AdnmbBackup-gui");
