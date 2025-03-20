@@ -796,7 +796,7 @@ namespace AdnmbBackup_gui
                                 err.Add(ex.InnerException.StackTrace);
                             }
                             err.Add(" ");
-                            File.WriteAllLines("err.txt", err);
+                            File.AppendAllLines("err.txt", err);
                             label4.Text = "有 " + errCount + " 个串的备份存在错误，详见同目录下err.txt";
                             return;
                         }
@@ -813,7 +813,7 @@ namespace AdnmbBackup_gui
                 label2.Text = "自动备份已完成，可在上方手动输入串号进行备份";
                 if (errCount > 0)
                 {
-                    File.WriteAllLines("err.txt", err);
+                    File.AppendAllLines("err.txt", err);
                     label4.Text = "有 " + errCount + " 个串的备份存在错误，详见同目录下err.txt";
                 }
                 else { label4.Text = "自动备份已完成，可在上方手动输入串号继续进行备份"; }
