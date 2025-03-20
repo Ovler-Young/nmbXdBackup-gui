@@ -132,7 +132,7 @@ namespace AdnmbBackup_gui
                     HttpClientHandler handler = new HttpClientHandler() { UseCookies = true };
                     handler.CookieContainer = cookieContainer;
                     HttpClient http = new HttpClient(handler);
-                    http.DefaultRequestHeaders.Add("Host", "api.nmb.best");
+                    http.DefaultRequestHeaders.Add("Host", new Uri(apiUrl).Host);
                     http.DefaultRequestHeaders.Add("Accept", "application/json");
                     http.DefaultRequestHeaders.Add("Accept-Encoding", "gzip");
                     http.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.0.0 Safari/537.36");
@@ -179,7 +179,7 @@ namespace AdnmbBackup_gui
                     HttpClientHandler handler = new HttpClientHandler() { UseCookies = true };
                     handler.CookieContainer = cookieContainer;
                     HttpClient http = new HttpClient(handler);
-                    http.DefaultRequestHeaders.Add("Host", "api.nmb.best");
+                    http.DefaultRequestHeaders.Add("Host", new Uri(apiUrl).Host);
                     http.DefaultRequestHeaders.Add("Accept", "application/json");
                     http.DefaultRequestHeaders.Add("Accept-Encoding", "gzip");
                     http.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.0.0 Safari/537.36");
@@ -588,7 +588,7 @@ namespace AdnmbBackup_gui
                     HttpClientHandler handler = new HttpClientHandler() { UseCookies = true };
                     handler.CookieContainer = cookieContainer;
                     HttpClient http = new HttpClient(handler);
-                    http.DefaultRequestHeaders.Add("Host", "api.nmb.best");
+                    http.DefaultRequestHeaders.Add("Host", new Uri(apiUrl).Host);
                     http.DefaultRequestHeaders.Add("Accept", "application/json");
                     http.DefaultRequestHeaders.Add("Accept-Encoding", "gzip");
                     http.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.0.0 Safari/537.36"); // todo: change to the App UA with github link
@@ -678,7 +678,7 @@ namespace AdnmbBackup_gui
                                 HttpClientHandler handler = new HttpClientHandler() { UseCookies = true };
                                 handler.CookieContainer = cookieContainer;
                                 HttpClient http = new HttpClient(handler);
-                                http.DefaultRequestHeaders.Add("Host", "api.nmb.best");
+                                http.DefaultRequestHeaders.Add("Host", new Uri(apiUrl).Host);
                                 http.DefaultRequestHeaders.Add("Accept", "application/json");
                                 http.DefaultRequestHeaders.Add("Accept-Encoding", "gzip");
                                 http.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.0.0 Safari/537.36");
@@ -732,7 +732,7 @@ namespace AdnmbBackup_gui
                                 HttpClientHandler handler = new HttpClientHandler() { UseCookies = true };
                                 handler.CookieContainer = cookieContainer;
                                 HttpClient http = new HttpClient(handler);
-                                http.DefaultRequestHeaders.Add("Host", "api.nmb.best");
+                                http.DefaultRequestHeaders.Add("Host", new Uri(apiUrl).Host);
                                 http.DefaultRequestHeaders.Add("Accept", "application/json");
                                 http.DefaultRequestHeaders.Add("Accept-Encoding", "gzip");
                                 http.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.0.0 Safari/537.36");
