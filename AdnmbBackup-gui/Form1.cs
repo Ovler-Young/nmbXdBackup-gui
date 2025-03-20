@@ -71,7 +71,7 @@ namespace AdnmbBackup_gui
             System.Diagnostics.Process.Start("https://www.coldthunder11.com/index.php/2020/03/19/%e5%a6%82%e4%bd%95%e8%8e%b7%e5%8f%96a%e5%b2%9b%e7%9a%84%e9%a5%bc%e5%b9%b2/");
         }
 
-        private async void button1_Click(object sender, EventArgs e)
+        private void button1_Click(object sender, EventArgs e)
         {
             string id = textBox1.Text;
             if (id == string.Empty) return;
@@ -155,13 +155,21 @@ namespace AdnmbBackup_gui
                     var replyCount = int.Parse(fpjson["ReplyCount"].ToString());
                     int pageCount = replyCount / 19;
                     if (replyCount % 19 != 0) pageCount++;
-                    // Replace sequential loop with parallel fetching starting from pageCountInCache to pageCount
-                    if (pageCount >= pageCountInCache)
+                    for (int page = pageCountInCache; page <= pageCount; page++)
                     {
-                        label4.Text = "正在获取多个页面...";
-                        JArray additionalReplies = await FetchPagesInParallelAsync(http, url, id, pageCountInCache, pageCount);
-                        foreach (var item in additionalReplies)
+                        label4.Text = "第" + page + "页";
+                        t = http.GetAsync(url + "?id=" + id + "&page=" + page);
+                        t.Wait();
+                        result = t.Result;
+                        t2 = result.Content.ReadAsByteArrayAsync();
+                        t2.Wait();
+                        bytes = t2.Result;
+                        str = ReadGzip(bytes);
+                        var jo = JsonConvert.DeserializeObject<JObject>(str);
+                        JArray ja = jo["Replies"].ToObject<JArray>();
+                        foreach (var item in ja)
                         {
+                            if (item["user_hash"].ToString() == "Tips") continue;
                             contentJA.Add(item);
                         }
                     }
@@ -209,13 +217,23 @@ namespace AdnmbBackup_gui
                     int pageCount = replyCount / 19;
                     if (replyCount % 19 != 0) pageCount++;
                     JArray contentJA = fpjson["Replies"].ToObject<JArray>();
-                    if (pageCount >= 2)
+                    for (var page = 2; page <= pageCount; page++)
                     {
-                        label4.Text = "正在获取多个页面...";
-                        JArray additionalReplies = await FetchPagesInParallelAsync(http, url, id, 2, pageCount);
-                        foreach (var item in additionalReplies)
+                        label4.Text = "正在获取第" + page + "页";
+                        t = http.GetAsync(url + "?id=" + id + "&page=" + page);
+                        t.Wait();
+                        result = t.Result;
+                        t2 = result.Content.ReadAsByteArrayAsync();
+                        t2.Wait();
+                        bytes = t2.Result;
+                        str = ReadGzip(bytes);
+                        var jo = JsonConvert.DeserializeObject<JObject>(str);
+                        JArray ja = jo["Replies"].ToObject<JArray>();
+                        var rpcount = ja.Count;
+                        for (int j = 0; j < rpcount; j++)
                         {
-                            contentJA.Add(item);
+                            if (ja[j]["user_hash"].ToString() == "Tips") continue;
+                            contentJA.Add(ja[j]);
                         }
                     }
                     label4.Text = "完成";
@@ -241,47 +259,6 @@ namespace AdnmbBackup_gui
             ConvertToMarkdown(id);
             ConvertToMarkdownPoOnly(id);
         }
-
-        // New helper method for parallel page fetching
-        private async Task<JArray> FetchPagesInParallelAsync(HttpClient http, string url, string id, int startPage, int endPage)
-        {
-            JArray resultArray = new JArray();
-            var tasks = new List<Task<Tuple<int, JArray>>>();
-            for (int page = startPage; page <= endPage; page++)
-            {
-                int pageNumber = page;
-                tasks.Add(FetchPageAsync(http, url, id, pageNumber));
-            }
-            var results = await Task.WhenAll(tasks);
-            foreach (var result in results.OrderBy(r => r.Item1))
-            {
-                foreach (var item in result.Item2)
-                {
-                    if (item["user_hash"].ToString() == "Tips") continue;
-                    resultArray.Add(item);
-                }
-            }
-            return resultArray;
-        }
-
-        private async Task<Tuple<int, JArray>> FetchPageAsync(HttpClient http, string url, string id, int page)
-        {
-            try
-            {
-                var response = await http.GetAsync(url + "?id=" + id + "&page=" + page);
-                var bytes = await response.Content.ReadAsByteArrayAsync();
-                string str = ReadGzip(bytes);
-                var jo = JsonConvert.DeserializeObject<JObject>(str);
-                JArray ja = jo["Replies"].ToObject<JArray>();
-                return new Tuple<int, JArray>(page, ja);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error fetching page {page}: {ex.Message}");
-                return new Tuple<int, JArray>(page, new JArray());
-            }
-        }
-
         private void linkLabel2_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
         {
             System.Diagnostics.Process.Start("https://github.com/Ovler-Young/AdnmbBackup-gui");
@@ -424,6 +401,29 @@ namespace AdnmbBackup_gui
                 }
                 sb.Append(ContentProcess(ja[i]["content"].ToString().Replace("<b>", "**").Replace("</b>", "**").Replace("<small>", "`").Replace("</small>", "`"))); sb.Append(Environment.NewLine);
             }
+            File.WriteAllText(savepath, sb.ToString(), System.Text.Encoding.GetEncoding("UTF-8"));
+        }
+        static void ConvertToMarkdownPoOnly(string id)
+        {
+            string path = Path.Combine("cache", id + ".json");
+            var po_path = path.Replace("cache", "po").Replace("json", "txt");
+            var jo = JsonConvert.DeserializeObject<JObject>(File.ReadAllText(path));
+            var sb = new StringBuilder();
+            var savepath = GenerateSavepath(id, jo["title"].ToString(), ".md", true);
+            if (jo["title"].ToString() != "无标题")
+            {
+                sb.Append(Environment.NewLine); sb.Append("# "); sb.Append(jo["title"].ToString()); sb.Append(Environment.NewLine); sb.Append(Environment.NewLine);
+            }
+            else
+            {
+                sb.Append(Environment.NewLine); sb.Append("# "); sb.Append(jo["id"].ToString()); sb.Append(Environment.NewLine); sb.Append(Environment.NewLine);
+            }
+            if (jo["name"].ToString() != "无名氏" && jo["name"].ToString() != "")
+            {
+                sb.Append("**"); sb.Append(jo["name"].ToString()); sb.Append("**"); sb.Append(Environment.NewLine);
+            }
+            sb.Append("No."); sb.Append(jo["id"].ToString()); sb.Append("  "); sb.Append(jo["user_hash"].ToString()); sb.Append("  "); sb.Append(jo["now"].ToString()); sb.Append(Environment.NewLine);
+            if (jo["img"].ToString() != "")
             {
                 string imageBaseUrl = new Form1().GetImageBaseUrl();
                 sb.Append("![image]("); sb.Append(imageBaseUrl); sb.Append("/"); 
