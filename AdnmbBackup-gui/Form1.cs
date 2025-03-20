@@ -789,6 +789,8 @@ namespace AdnmbBackup_gui
                             err.Add("[" + DateTime.Now.ToString() + "] 串 " + id + " 备份出错，最后备份于：" + File.GetLastWriteTime(path));
                             err.Add(ex.Message);
                             err.Add(ex.StackTrace);
+                            err.Add(ex.InnerException.Message);
+                            err.Add(ex.InnerException.StackTrace);
                             err.Add(" ");
                             File.WriteAllLines("err.txt", err);
                             label4.Text = "有 " + errCount + " 个串的备份存在错误，详见同目录下err.txt";
