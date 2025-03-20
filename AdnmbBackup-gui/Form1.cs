@@ -471,22 +471,25 @@ namespace AdnmbBackup_gui
             }
             File.WriteAllText(savepath, sb.ToString(), System.Text.Encoding.GetEncoding("UTF-8"));
         }
-        static void GenerateSavepath(string id, string title, string ext, bool isPoOnly, out string savepath)
+        static string GenerateSavepath(string id, string title, string ext, bool isPoOnly)
         {
-            string savepath = Path.Combine("output", id + ext);
             if (title != "无标题")
             {
+                string filename = title;
                 string invalidChars = new string(Path.GetInvalidFileNameChars()) + new string(Path.GetInvalidPathChars());
                 foreach (char c in invalidChars)
                 {
                     filename = filename.Replace(c.ToString(), "_");
                 }
-
                 if (filename.Length > 100)
                 {
                     filename = filename.Substring(0, 100);
                 }
-                savepath = Path.Combine("output", id + "_" + title + ext);
+                return Path.Combine("output", id + "_" + filename + ext);
+            }
+            else
+            {
+                return Path.Combine("output", id + ext);
             }
         }
         static string ContentProcess(string content)
