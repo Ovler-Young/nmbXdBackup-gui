@@ -19,6 +19,38 @@ namespace AdnmbBackup_gui
 {
     public partial class Form1 : Form
     {
+        // Add method to get API base URL
+        private string GetApiBaseUrl()
+        {
+            if (File.Exists("proxy.txt"))
+            {
+                string url = File.ReadAllText("proxy.txt").Trim();
+                // Make sure the URL doesn't end with a slash
+                return url.TrimEnd('/');
+            }
+            return "https://api.nmb.best";
+        }
+
+        // Add method to get the domain from a URL
+        private string GetDomainFromUrl(string url)
+        {
+            try 
+            {
+                Uri uri = new Uri(url);
+                return uri.Host;
+            }
+            catch
+            {
+                return "api.nmb.best"; // Fallback to default
+            }
+        }
+
+        // Add method to get the image URL base
+        private string GetImageBaseUrl()
+        {
+            return "https://image.nmb.best/image";
+        }
+
         public Form1()
         {
             InitializeComponent();
@@ -92,10 +124,11 @@ namespace AdnmbBackup_gui
                             i--;
                         }
                     }
-                    string url = "https://api.nmb.best/Api/thread";
+                    string url = GetApiBaseUrl() + "/Api/thread";
                     var cookie = File.ReadAllText("cookie.txt");
                     CookieContainer cookieContainer = new CookieContainer();
-                    cookieContainer.Add(new Cookie("userhash", cookie, "/", "api.nmb.best"));
+                    string domain = GetDomainFromUrl(GetApiBaseUrl());
+                    cookieContainer.Add(new Cookie("userhash", cookie, "/", domain));
                     HttpClientHandler handler = new HttpClientHandler() { UseCookies = true };
                     handler.CookieContainer = cookieContainer;
                     HttpClient http = new HttpClient(handler);
@@ -147,10 +180,11 @@ namespace AdnmbBackup_gui
                 }
                 else
                 {
-                    string url = "https://api.nmb.best/Api/thread";
+                    string url = GetApiBaseUrl() + "/Api/thread";
                     var cookie = File.ReadAllText("cookie.txt");
                     CookieContainer cookieContainer = new CookieContainer();
-                    cookieContainer.Add(new Cookie("userhash", cookie, "/", "api.nmb.best"));
+                    string domain = GetDomainFromUrl(GetApiBaseUrl());
+                    cookieContainer.Add(new Cookie("userhash", cookie, "/", domain));
                     HttpClientHandler handler = new HttpClientHandler() { UseCookies = true };
                     handler.CookieContainer = cookieContainer;
                     HttpClient http = new HttpClient(handler);
@@ -313,7 +347,9 @@ namespace AdnmbBackup_gui
             sb.Append("No."); sb.Append(jo["id"].ToString()); sb.Append("  "); sb.Append(jo["user_hash"].ToString()); sb.Append("  "); sb.Append(jo["now"].ToString()); sb.Append(Environment.NewLine);
             if (jo["img"].ToString() != "")
             {
-                sb.Append("![image](https://image.nmb.best/image/"); sb.Append(jo["img"].ToString()); sb.Append(jo["ext"].ToString()); sb.Append(")"); sb.Append(Environment.NewLine);
+                string imageBaseUrl = new Form1().GetImageBaseUrl();
+                sb.Append("![image]("); sb.Append(imageBaseUrl); sb.Append("/"); 
+                sb.Append(jo["img"].ToString()); sb.Append(jo["ext"].ToString()); sb.Append(")"); sb.Append(Environment.NewLine);
             }
             sb.Append(ContentProcess(jo["content"].ToString().Replace("<b>", "**").Replace("</b>", "**").Replace("<small>", "`").Replace("</small>", "`"))); sb.Append(Environment.NewLine);
             var ja = jo["Replies"].ToObject<JArray>();
@@ -359,7 +395,9 @@ namespace AdnmbBackup_gui
                 sb.Append("No."); sb.Append(ja[i]["id"].ToString()); sb.Append("  "); sb.Append(ja[i]["user_hash"].ToString()); sb.Append("  "); sb.Append(ja[i]["now"].ToString()); sb.Append(Environment.NewLine);
                 if (ja[i]["img"].ToString() != "")
                 {
-                    sb.Append("![image](https://image.nmb.best/image/"); sb.Append(ja[i]["img"].ToString()); sb.Append(ja[i]["ext"].ToString()); sb.Append(")"); sb.Append(Environment.NewLine);
+                    string imageBaseUrl = new Form1().GetImageBaseUrl();
+                    sb.Append("![image]("); sb.Append(imageBaseUrl); sb.Append("/"); 
+                    sb.Append(ja[i]["img"].ToString()); sb.Append(ja[i]["ext"].ToString()); sb.Append(")"); sb.Append(Environment.NewLine);
                 }
                 sb.Append(ContentProcess(ja[i]["content"].ToString().Replace("<b>", "**").Replace("</b>", "**").Replace("<small>", "`").Replace("</small>", "`"))); sb.Append(Environment.NewLine);
             }
@@ -387,7 +425,9 @@ namespace AdnmbBackup_gui
             sb.Append("No."); sb.Append(jo["id"].ToString()); sb.Append("  "); sb.Append(jo["user_hash"].ToString()); sb.Append("  "); sb.Append(jo["now"].ToString()); sb.Append(Environment.NewLine);
             if (jo["img"].ToString() != "")
             {
-                sb.Append("![image](https://image.nmb.best/image/"); sb.Append(jo["img"].ToString()); sb.Append(jo["ext"].ToString()); sb.Append(")"); sb.Append(Environment.NewLine);
+                string imageBaseUrl = new Form1().GetImageBaseUrl();
+                sb.Append("![image]("); sb.Append(imageBaseUrl); sb.Append("/"); 
+                sb.Append(jo["img"].ToString()); sb.Append(jo["ext"].ToString()); sb.Append(")"); sb.Append(Environment.NewLine);
             }
             sb.Append(ContentProcess(jo["content"].ToString().Replace("<b>", "**").Replace("</b>", "**").Replace("<small>", "`").Replace("</small>", "`"))); sb.Append(Environment.NewLine);
             var ja = jo["Replies"].ToObject<JArray>();
@@ -422,7 +462,9 @@ namespace AdnmbBackup_gui
                     sb.Append("  No."); sb.Append(ja[i]["id"].ToString()); sb.Append(Environment.NewLine);
                     if (ja[i]["img"].ToString() != "")
                     {
-                        sb.Append("![image](https://image.nmb.best/image/"); sb.Append(ja[i]["img"].ToString()); sb.Append(ja[i]["ext"].ToString()); sb.Append(")"); sb.Append(Environment.NewLine);
+                        string imageBaseUrl = new Form1().GetImageBaseUrl();
+                        sb.Append("![image]("); sb.Append(imageBaseUrl); sb.Append("/"); 
+                        sb.Append(ja[i]["img"].ToString()); sb.Append(ja[i]["ext"].ToString()); sb.Append(")"); sb.Append(Environment.NewLine);
                     }
                     sb.Append(ContentProcess(ja[i]["content"].ToString().Replace("<b>", "**").Replace("</b>", "**").Replace("<small>", "`").Replace("</small>", "`"))); sb.Append(Environment.NewLine);
                 }
@@ -502,10 +544,12 @@ namespace AdnmbBackup_gui
                 // get ids via api
                 while (true) // We will break out of the loop when we get an empty response.
                 {
-                    string feedurl = String.Format("https://api.nmb.best/Api/feed?uuid={0}&page={1}", uuid, pageNo);
+                    string apiBaseUrl = GetApiBaseUrl();
+                    string feedurl = String.Format("{0}/Api/feed?uuid={1}&page={2}", apiBaseUrl, uuid, pageNo);
                     label4.Text = "正在获取订阅串列表，第" + pageNo + "页，url：";
                     CookieContainer cookieContainer = new CookieContainer();
-                    cookieContainer.Add(new Cookie("userhash", cookie, "/", "api.nmb.best"));
+                    string domain = GetDomainFromUrl(apiBaseUrl);
+                    cookieContainer.Add(new Cookie("userhash", cookie, "/", domain));
                     HttpClientHandler handler = new HttpClientHandler() { UseCookies = true };
                     handler.CookieContainer = cookieContainer;
                     HttpClient http = new HttpClient(handler);
@@ -592,9 +636,10 @@ namespace AdnmbBackup_gui
                                         i--;
                                     }
                                 }
-                                string url = "https://api.nmb.best/Api/thread";
+                                string url = GetApiBaseUrl() + "/Api/thread";
                                 CookieContainer cookieContainer = new CookieContainer();
-                                cookieContainer.Add(new Cookie("userhash", cookie, "/", "api.nmb.best"));
+                                string domain = GetDomainFromUrl(GetApiBaseUrl());
+                                cookieContainer.Add(new Cookie("userhash", cookie, "/", domain));
                                 HttpClientHandler handler = new HttpClientHandler() { UseCookies = true };
                                 handler.CookieContainer = cookieContainer;
                                 HttpClient http = new HttpClient(handler);
@@ -645,9 +690,10 @@ namespace AdnmbBackup_gui
                             }
                             else
                             {
-                                string url = "https://api.nmb.best/Api/thread";
+                                string url = GetApiBaseUrl() + "/Api/thread";
                                 CookieContainer cookieContainer = new CookieContainer();
-                                cookieContainer.Add(new Cookie("userhash", cookie, "/", "api.nmb.best"));
+                                string domain = GetDomainFromUrl(GetApiBaseUrl());
+                                cookieContainer.Add(new Cookie("userhash", cookie, "/", domain));
                                 HttpClientHandler handler = new HttpClientHandler() { UseCookies = true };
                                 handler.CookieContainer = cookieContainer;
                                 HttpClient http = new HttpClient(handler);
