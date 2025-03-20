@@ -473,6 +473,7 @@ namespace AdnmbBackup_gui
         }
         static void GenerateSavepath(string id, string title, string ext, bool isPoOnly, out string savepath)
         {
+            string savepath = Path.Combine("output", id + ext);
             if (title != "无标题")
             {
                 string invalidChars = new string(Path.GetInvalidFileNameChars()) + new string(Path.GetInvalidPathChars());
@@ -486,10 +487,6 @@ namespace AdnmbBackup_gui
                     filename = filename.Substring(0, 100);
                 }
                 savepath = Path.Combine("output", id + "_" + title + ext);
-            }
-            else
-            {
-                savepath = Path.Combine("output", id + ext);
             }
         }
         static string ContentProcess(string content)
