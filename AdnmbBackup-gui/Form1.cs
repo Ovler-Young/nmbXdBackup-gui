@@ -236,11 +236,10 @@ namespace AdnmbBackup_gui
             var sb = new StringBuilder();
             sb.Append(jo["user_hash"].ToString()); sb.Append("  "); sb.Append(jo["now"].ToString());
             sb.Append("  No."); sb.Append(jo["id"].ToString()); sb.Append(Environment.NewLine);
-            var savepath = Path.Combine("output", id + ".txt");
+            var savepath = GenerateSavepath(id, jo["title"].ToString(), ".txt", false);
             if (jo["title"].ToString() != "无标题")
             {
                 sb.Append("标题:"); sb.Append(jo["title"].ToString()); sb.Append(Environment.NewLine);
-                savepath = Path.Combine("output", id + "_" + jo["title"].ToString() + ".txt");
             }
             sb.Append(ContentProcess(jo["content"].ToString())); sb.Append(Environment.NewLine);
             var ja = jo["Replies"].ToObject<JArray>();
@@ -261,7 +260,7 @@ namespace AdnmbBackup_gui
             var sb = new StringBuilder();
             sb.Append(jo["user_hash"].ToString()); sb.Append("  "); sb.Append(jo["now"].ToString());
             sb.Append("  No."); sb.Append(jo["id"].ToString()); sb.Append(Environment.NewLine);
-            var savepath = Path.Combine("output", id + "_po_only.txt");
+            var savepath = GenerateSavepath(id, jo["title"].ToString(), "_po_only.txt", true);
             if (jo["title"].ToString() != "无标题")
             {
                 sb.Append("标题:"); sb.Append(jo["title"].ToString()); sb.Append(Environment.NewLine);
@@ -298,11 +297,10 @@ namespace AdnmbBackup_gui
             var po_path = path.Replace("cache", "po").Replace("json", "txt");
             var jo = JsonConvert.DeserializeObject<JObject>(File.ReadAllText(path));
             var sb = new StringBuilder();
-            var savepath = Path.Combine("output", id + ".md");
+            var savepath = GenerateSavepath(id, jo["title"].ToString(), ".md", false);
             if (jo["title"].ToString() != "无标题")
             {
                 sb.Append("# "); sb.Append(jo["title"].ToString()); sb.Append(Environment.NewLine); sb.Append(Environment.NewLine);
-                savepath = Path.Combine("output", id + "_" + jo["title"].ToString() + ".md");
             }
             else
             {
@@ -373,11 +371,10 @@ namespace AdnmbBackup_gui
             var po_path = path.Replace("cache", "po").Replace("json", "txt");
             var jo = JsonConvert.DeserializeObject<JObject>(File.ReadAllText(path));
             var sb = new StringBuilder();
-            var savepath = Path.Combine("output", id + "_po_only.md");
+            var savepath = GenerateSavepath(id, jo["title"].ToString(), ".md", true);
             if (jo["title"].ToString() != "无标题")
             {
                 sb.Append(Environment.NewLine); sb.Append("# "); sb.Append(jo["title"].ToString()); sb.Append(Environment.NewLine); sb.Append(Environment.NewLine);
-                savepath = Path.Combine("output", id + "_" + jo["title"].ToString() + "_po_only.md");
             }
             else
             {
@@ -431,6 +428,27 @@ namespace AdnmbBackup_gui
                 }
             }
             File.WriteAllText(savepath, sb.ToString(), System.Text.Encoding.GetEncoding("UTF-8"));
+        }
+        static void GenerateSavepath(string id, string title, string ext, bool isPoOnly, out string savepath)
+        {
+            if (title != "无标题")
+            {
+                string invalidChars = new string(Path.GetInvalidFileNameChars()) + new string(Path.GetInvalidPathChars());
+                foreach (char c in invalidChars)
+                {
+                    filename = filename.Replace(c.ToString(), "_");
+                }
+
+                if (filename.Length > 100)
+                {
+                    filename = filename.Substring(0, 100);
+                }
+                savepath = Path.Combine("output", id + "_" + title + ext);
+            }
+            else
+            {
+                savepath = Path.Combine("output", id + ext);
+            }
         }
         static string ContentProcess(string content)
         {
