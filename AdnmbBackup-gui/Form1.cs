@@ -132,7 +132,7 @@ namespace AdnmbBackup_gui
                     HttpClientHandler handler = new HttpClientHandler() { UseCookies = true };
                     handler.CookieContainer = cookieContainer;
                     HttpClient http = new HttpClient(handler);
-                    http.DefaultRequestHeaders.Add("Host", "api.nmb.best");
+                    http.DefaultRequestHeaders.Add("Host", domain);
                     http.DefaultRequestHeaders.Add("Accept", "application/json");
                     http.DefaultRequestHeaders.Add("Accept-Encoding", "gzip");
                     http.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.0.0 Safari/537.36");
@@ -179,7 +179,7 @@ namespace AdnmbBackup_gui
                     HttpClientHandler handler = new HttpClientHandler() { UseCookies = true };
                     handler.CookieContainer = cookieContainer;
                     HttpClient http = new HttpClient(handler);
-                    http.DefaultRequestHeaders.Add("Host", "api.nmb.best");
+                    http.DefaultRequestHeaders.Add("Host", domain);
                     http.DefaultRequestHeaders.Add("Accept", "application/json");
                     http.DefaultRequestHeaders.Add("Accept-Encoding", "gzip");
                     http.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.0.0 Safari/537.36");
@@ -588,7 +588,7 @@ namespace AdnmbBackup_gui
                     HttpClientHandler handler = new HttpClientHandler() { UseCookies = true };
                     handler.CookieContainer = cookieContainer;
                     HttpClient http = new HttpClient(handler);
-                    http.DefaultRequestHeaders.Add("Host", "api.nmb.best");
+                    http.DefaultRequestHeaders.Add("Host", domain);
                     http.DefaultRequestHeaders.Add("Accept", "application/json");
                     http.DefaultRequestHeaders.Add("Accept-Encoding", "gzip");
                     http.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.0.0 Safari/537.36"); // todo: change to the App UA with github link
@@ -678,7 +678,7 @@ namespace AdnmbBackup_gui
                                 HttpClientHandler handler = new HttpClientHandler() { UseCookies = true };
                                 handler.CookieContainer = cookieContainer;
                                 HttpClient http = new HttpClient(handler);
-                                http.DefaultRequestHeaders.Add("Host", "api.nmb.best");
+                                http.DefaultRequestHeaders.Add("Host", domain);
                                 http.DefaultRequestHeaders.Add("Accept", "application/json");
                                 http.DefaultRequestHeaders.Add("Accept-Encoding", "gzip");
                                 http.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.0.0 Safari/537.36");
@@ -732,7 +732,7 @@ namespace AdnmbBackup_gui
                                 HttpClientHandler handler = new HttpClientHandler() { UseCookies = true };
                                 handler.CookieContainer = cookieContainer;
                                 HttpClient http = new HttpClient(handler);
-                                http.DefaultRequestHeaders.Add("Host", "api.nmb.best");
+                                http.DefaultRequestHeaders.Add("Host", domain);
                                 http.DefaultRequestHeaders.Add("Accept", "application/json");
                                 http.DefaultRequestHeaders.Add("Accept-Encoding", "gzip");
                                 http.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.0.0 Safari/537.36");
@@ -789,8 +789,14 @@ namespace AdnmbBackup_gui
                             err.Add("[" + DateTime.Now.ToString() + "] 串 " + id + " 备份出错，最后备份于：" + File.GetLastWriteTime(path));
                             err.Add(ex.Message);
                             err.Add(ex.StackTrace);
+                            err.Add(ex.InnerException.Message);
+                            if (ex.InnerException != null)
+                            {
+                                err.Add(ex.InnerException.Message);
+                                err.Add(ex.InnerException.StackTrace);
+                            }
                             err.Add(" ");
-                            File.WriteAllLines("err.txt", err);
+                            File.AppendAllLines("err.txt", err);
                             label4.Text = "有 " + errCount + " 个串的备份存在错误，详见同目录下err.txt";
                             return;
                         }
@@ -807,7 +813,7 @@ namespace AdnmbBackup_gui
                 label2.Text = "自动备份已完成，可在上方手动输入串号进行备份";
                 if (errCount > 0)
                 {
-                    File.WriteAllLines("err.txt", err);
+                    File.AppendAllLines("err.txt", err);
                     label4.Text = "有 " + errCount + " 个串的备份存在错误，详见同目录下err.txt";
                 }
                 else { label4.Text = "自动备份已完成，可在上方手动输入串号继续进行备份"; }
