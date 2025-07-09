@@ -345,13 +345,6 @@
 												<span class="font-medium">
 													{thread.title === '无标题' ? `串号: ${thread.id}` : thread.title}
 												</span>
-												{#if thread.hasImage}
-													<span
-														class="bg-primary/10 text-primary inline-flex items-center rounded-full px-2 py-1 text-xs"
-													>
-														有图片
-													</span>
-												{/if}
 											</div>
 										</td>
 										<td class="text-muted-foreground px-4 py-3">{thread.id}</td>
