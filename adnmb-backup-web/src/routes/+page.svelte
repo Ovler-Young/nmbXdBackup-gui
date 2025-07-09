@@ -371,7 +371,12 @@
 													{markdownLoading && viewingMarkdown === thread.id ? '加载中...' : '阅读'}
 												</Button>
 												<select
-													onchange={(e) => downloadWithFormat(thread.id, e.target.value)}
+													onchange={(e) => {
+														const target = e.target as HTMLSelectElement;
+														if (target) {
+															downloadWithFormat(thread.id, target.value);
+														}
+													}}
 													class="border-border bg-background rounded border px-2 py-1 text-sm"
 												>
 													<option value="">下载</option>
