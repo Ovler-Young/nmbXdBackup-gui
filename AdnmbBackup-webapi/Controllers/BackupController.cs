@@ -14,7 +14,7 @@ using System;
 namespace AdnmbBackup_webapi.Controllers
 {
     [ApiController]
-    [Route("[controller]")]
+    [Route("api/thread")]
     public class BackupController : ControllerBase
     {
         private readonly IHttpClientFactory _httpClientFactory;
@@ -24,8 +24,8 @@ namespace AdnmbBackup_webapi.Controllers
             _httpClientFactory = httpClientFactory;
         }
 
-        [HttpGet("{id}")]
-        public async Task<IActionResult> Get(string id)
+        [HttpGet]
+        public async Task<IActionResult> Get([FromQuery] string id)
         {
             if (string.IsNullOrEmpty(id) || !id.All(char.IsDigit))
             {
