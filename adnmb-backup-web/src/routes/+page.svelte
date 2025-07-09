@@ -5,6 +5,7 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import SvelteMarkdown from '@humanspeak/svelte-markdown';
+	import { onMount } from 'svelte';
 
 	// State management
 	let threadId = '';
@@ -228,8 +229,10 @@
 		return new Date(timeString).toLocaleString('zh-CN');
 	}
 
-	// Load cached threads on mount
-	loadCachedThreads();
+	// Load cached threads on client only
+	onMount(() => {
+		loadCachedThreads();
+	});
 </script>
 
 <div class="bg-background min-h-screen">
