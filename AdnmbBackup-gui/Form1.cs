@@ -329,11 +329,10 @@ namespace AdnmbBackup_gui
             var sb = new StringBuilder();
             sb.Append(jo["user_hash"].ToString()); sb.Append("  "); sb.Append(jo["now"].ToString());
             sb.Append("  No."); sb.Append(jo["id"].ToString()); sb.Append(Environment.NewLine);
-            var savepath = GenerateSavepath(id, jo["title"].ToString(), "_po_only.txt", true);
+            var savepath = GenerateSavepath(id, jo["title"].ToString(), ".txt", true);
             if (jo["title"].ToString() != "无标题")
             {
                 sb.Append("标题:"); sb.Append(jo["title"].ToString()); sb.Append(Environment.NewLine);
-                savepath = Path.Combine("output", id + "_" + jo["title"].ToString() + "_po_only.txt");
             }
             sb.Append(ContentProcess(jo["content"].ToString())); sb.Append(Environment.NewLine);
             var ja = jo["Replies"].ToObject<JArray>();
@@ -508,6 +507,7 @@ namespace AdnmbBackup_gui
         }
         static string GenerateSavepath(string id, string title, string ext, bool isPoOnly)
         {
+            string suffix = isPoOnly ? "_po_only" : "";
             if (title != "无标题")
             {
                 string filename = title;
@@ -520,11 +520,11 @@ namespace AdnmbBackup_gui
                 {
                     filename = filename.Substring(0, 100);
                 }
-                return Path.Combine("output", id + "_" + filename + ext);
+                return Path.Combine("output", id + "_" + filename + suffix + ext);
             }
             else
             {
-                return Path.Combine("output", id + ext);
+                return Path.Combine("output", id + suffix + ext);
             }
         }
         static string ContentProcess(string content)
