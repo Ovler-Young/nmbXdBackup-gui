@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { writable } from 'svelte/store';
-	import '../app.css';
 
 	// Import UI components (will be available after shadcn-svelte installation)
 	let Button: any, Card: any, Input: any, Label: any, Select: any, Tabs: any, Separator: any;
