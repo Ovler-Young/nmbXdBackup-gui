@@ -343,6 +343,9 @@ ASALocalRun/
 # BeatPulse healthcheck temp database
 healthchecksdb
 
+# GEMINI
+GEMINI.md
+
 # Backup folder for Package Reference Convert tool in Visual Studio 2017
 MigrationBackup/
 
