@@ -1,31 +1,12 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { writable } from 'svelte/store';
-
-	// Import UI components (will be available after shadcn-svelte installation)
-	let Button: any, Card: any, Input: any, Label: any, Select: any, Tabs: any, Separator: any;
-
-	onMount(async () => {
-		try {
-			const buttonModule = await import('$lib/components/ui/button/index.js');
-			const cardModule = await import('$lib/components/ui/card/index.js');
-			const inputModule = await import('$lib/components/ui/input/index.js');
-			const labelModule = await import('$lib/components/ui/label/index.js');
-			const selectModule = await import('$lib/components/ui/select/index.js');
-			const tabsModule = await import('$lib/components/ui/tabs/index.js');
-			const separatorModule = await import('$lib/components/ui/separator/index.js');
-
-			Button = buttonModule.Button;
-			Card = cardModule;
-			Input = inputModule.Input;
-			Label = labelModule.Label;
-			Select = selectModule;
-			Tabs = tabsModule;
-			Separator = separatorModule.Separator;
-		} catch (error) {
-			console.error('Error loading components:', error);
-		}
-	});
+	import { Button } from '$lib/components/ui/button/index.js';
+	import * as Card from '$lib/components/ui/card/index.js';
+	import { Input } from '$lib/components/ui/input/index.js';
+	import { Label } from '$lib/components/ui/label/index.js';
+	import * as Select from '$lib/components/ui/select/index.js';
+	import * as Tabs from '$lib/components/ui/tabs/index.js';
+	import { Separator } from '$lib/components/ui/separator/index.js';
 
 	// State management
 	let threadId = '';
@@ -147,9 +128,7 @@
 	}
 
 	// Load cached threads on mount
-	onMount(() => {
-		loadCachedThreads();
-	});
+	loadCachedThreads();
 </script>
 
 <div class="bg-background min-h-screen">
@@ -168,235 +147,194 @@
 		{/if}
 
 		<!-- Main content -->
-		{#if Tabs}
-			<Tabs.Root bind:value={activeTab} class="w-full">
-				<Tabs.List class="grid w-full grid-cols-3">
-					<Tabs.Trigger value="backup">备份串</Tabs.Trigger>
-					<Tabs.Trigger value="cache">已缓存</Tabs.Trigger>
-					<Tabs.Trigger value="download">下载文件</Tabs.Trigger>
-				</Tabs.List>
+		<Tabs.Root bind:value={activeTab} class="w-full">
+			<Tabs.List class="grid w-full grid-cols-3">
+				<Tabs.Trigger value="backup">备份串</Tabs.Trigger>
+				<Tabs.Trigger value="cache">已缓存</Tabs.Trigger>
+				<Tabs.Trigger value="download">下载文件</Tabs.Trigger>
+			</Tabs.List>
 
-				<!-- Backup Tab -->
-				<Tabs.Content value="backup" class="mt-6">
-					{#if Card}
-						<Card.Root>
-							<Card.Header>
-								<Card.Title>备份新串</Card.Title>
-								<Card.Description>输入串号开始备份</Card.Description>
-							</Card.Header>
-							<Card.Content class="space-y-4">
-								{#if Label && Input}
-									<div class="space-y-2">
-										<Label for="thread-id">串号</Label>
-										<Input
-											id="thread-id"
-											bind:value={threadId}
-											placeholder="请输入串号，例如: 12345678"
-											disabled={loading}
-										/>
-									</div>
-								{/if}
-							</Card.Content>
-							<Card.Footer>
-								{#if Button}
-									<Button
-										on:click={backupThread}
-										disabled={loading || !threadId.trim()}
-										class="w-full"
+			<!-- Backup Tab -->
+			<Tabs.Content value="backup" class="mt-6">
+				<Card.Root>
+					<Card.Header>
+						<Card.Title>备份新串</Card.Title>
+						<Card.Description>输入串号开始备份</Card.Description>
+					</Card.Header>
+					<Card.Content class="space-y-4">
+						<div class="space-y-2">
+							<Label for="thread-id">串号</Label>
+							<Input
+								id="thread-id"
+								bind:value={threadId}
+								placeholder="请输入串号，例如: 12345678"
+								disabled={loading}
+							/>
+						</div>
+					</Card.Content>
+					<Card.Footer>
+						<Button onclick={backupThread} disabled={loading || !threadId.trim()} class="w-full">
+							{loading ? '备份中...' : '开始备份'}
+						</Button>
+					</Card.Footer>
+				</Card.Root>
+			</Tabs.Content>
+
+			<!-- Cache Tab -->
+			<Tabs.Content value="cache" class="mt-6">
+				<Card.Root>
+					<Card.Header class="flex flex-row items-center justify-between">
+						<div>
+							<Card.Title>已缓存的串</Card.Title>
+							<Card.Description>查看和重新添加已缓存的串</Card.Description>
+						</div>
+						<Button variant="outline" onclick={loadCachedThreads} disabled={loadingCache}>
+							{loadingCache ? '加载中...' : '刷新'}
+						</Button>
+					</Card.Header>
+					<Card.Content>
+						{#if loadingCache}
+							<div class="py-8 text-center">
+								<p class="text-muted-foreground">加载中...</p>
+							</div>
+						{:else if cachedThreads.length === 0}
+							<div class="py-8 text-center">
+								<p class="text-muted-foreground">暂无缓存数据</p>
+							</div>
+						{:else}
+							<div class="space-y-4">
+								{#each cachedThreads as thread}
+									<div
+										class="border-border hover:bg-muted/50 rounded-lg border p-4 transition-colors"
 									>
-										{loading ? '备份中...' : '开始备份'}
-									</Button>
-								{/if}
-							</Card.Footer>
-						</Card.Root>
-					{/if}
-				</Tabs.Content>
-
-				<!-- Cache Tab -->
-				<Tabs.Content value="cache" class="mt-6">
-					{#if Card}
-						<Card.Root>
-							<Card.Header class="flex flex-row items-center justify-between">
-								<div>
-									<Card.Title>已缓存的串</Card.Title>
-									<Card.Description>查看和重新添加已缓存的串</Card.Description>
-								</div>
-								{#if Button}
-									<Button variant="outline" on:click={loadCachedThreads} disabled={loadingCache}>
-										{loadingCache ? '加载中...' : '刷新'}
-									</Button>
-								{/if}
-							</Card.Header>
-							<Card.Content>
-								{#if loadingCache}
-									<div class="py-8 text-center">
-										<p class="text-muted-foreground">加载中...</p>
-									</div>
-								{:else if cachedThreads.length === 0}
-									<div class="py-8 text-center">
-										<p class="text-muted-foreground">暂无缓存数据</p>
-									</div>
-								{:else}
-									<div class="space-y-4">
-										{#each cachedThreads as thread}
-											<div
-												class="border-border hover:bg-muted/50 rounded-lg border p-4 transition-colors"
-											>
-												<div class="flex items-start justify-between">
-													<div class="flex-1">
-														<h3 class="text-card-foreground font-semibold">
-															{thread.title === '无标题' ? `串号: ${thread.id}` : thread.title}
-														</h3>
-														<div class="text-muted-foreground mt-1 space-y-1 text-sm">
-															<p>串号: {thread.id}</p>
-															<p>回复数: {thread.replyCount}</p>
-															<p>作者: {thread.author}</p>
-															<p>缓存时间: {formatDate(thread.cachedAt)}</p>
-															{#if thread.hasImage}
-																<span
-																	class="bg-primary/10 text-primary inline-flex items-center rounded-full px-2 py-1 text-xs"
-																>
-																	有图片
-																</span>
-															{/if}
-														</div>
-													</div>
-													{#if Button}
-														<Button
-															variant="outline"
-															size="sm"
-															on:click={() => reAddThread(thread.id)}
+										<div class="flex items-start justify-between">
+											<div class="flex-1">
+												<h3 class="text-card-foreground font-semibold">
+													{thread.title === '无标题' ? `串号: ${thread.id}` : thread.title}
+												</h3>
+												<div class="text-muted-foreground mt-1 space-y-1 text-sm">
+													<p>串号: {thread.id}</p>
+													<p>回复数: {thread.replyCount}</p>
+													<p>作者: {thread.author}</p>
+													<p>缓存时间: {formatDate(thread.cachedAt)}</p>
+													{#if thread.hasImage}
+														<span
+															class="bg-primary/10 text-primary inline-flex items-center rounded-full px-2 py-1 text-xs"
 														>
-															重新备份
-														</Button>
+															有图片
+														</span>
 													{/if}
 												</div>
 											</div>
-										{/each}
-									</div>
-								{/if}
-							</Card.Content>
-						</Card.Root>
-					{/if}
-				</Tabs.Content>
-
-				<!-- Download Tab -->
-				<Tabs.Content value="download" class="mt-6">
-					{#if Card}
-						<Card.Root>
-							<Card.Header>
-								<Card.Title>下载文件</Card.Title>
-								<Card.Description>选择格式和模式下载已缓存的串</Card.Description>
-							</Card.Header>
-							<Card.Content class="space-y-6">
-								<!-- Thread Selection -->
-								{#if Label && Select}
-									<div class="space-y-2">
-										<Label>选择串</Label>
-										{#if cachedThreads.length > 0}
-											<select
-												bind:value={selectedThread}
-												class="border-border bg-background w-full rounded-md border p-2"
-											>
-												<option value="">请选择要下载的串</option>
-												{#each cachedThreads as thread}
-													<option value={thread.id}>
-														{thread.title === '无标题'
-															? `串号: ${thread.id}`
-															: `${thread.title} (${thread.id})`}
-													</option>
-												{/each}
-											</select>
-										{:else}
-											<p class="text-muted-foreground text-sm">暂无可下载的串，请先备份一些串</p>
-										{/if}
-									</div>
-								{/if}
-
-								{#if Separator}
-									<Separator />
-								{/if}
-
-								<!-- Format Selection -->
-								{#if Label}
-									<div class="space-y-3">
-										<Label>文件格式</Label>
-										<div class="grid grid-cols-2 gap-3">
-											<div class="flex items-center space-x-2">
-												<input
-													type="radio"
-													id="format-text"
-													bind:group={downloadFormat}
-													value="text"
-													class="h-4 w-4"
-												/>
-												<label for="format-text" class="text-sm font-medium">文本 (.txt)</label>
-											</div>
-											<div class="flex items-center space-x-2">
-												<input
-													type="radio"
-													id="format-markdown"
-													bind:group={downloadFormat}
-													value="markdown"
-													class="h-4 w-4"
-												/>
-												<label for="format-markdown" class="text-sm font-medium"
-													>Markdown (.md)</label
-												>
-											</div>
+											<Button variant="outline" size="sm" onclick={() => reAddThread(thread.id)}>
+												重新备份
+											</Button>
 										</div>
 									</div>
-								{/if}
+								{/each}
+							</div>
+						{/if}
+					</Card.Content>
+				</Card.Root>
+			</Tabs.Content>
 
-								<!-- Mode Selection -->
-								{#if Label}
-									<div class="space-y-3">
-										<Label>下载模式</Label>
-										<div class="grid grid-cols-2 gap-3">
-											<div class="flex items-center space-x-2">
-												<input
-													type="radio"
-													id="mode-all"
-													bind:group={downloadMode}
-													value="all"
-													class="h-4 w-4"
-												/>
-												<label for="mode-all" class="text-sm font-medium">全部回复</label>
-											</div>
-											<div class="flex items-center space-x-2">
-												<input
-													type="radio"
-													id="mode-po"
-													bind:group={downloadMode}
-													value="po"
-													class="h-4 w-4"
-												/>
-												<label for="mode-po" class="text-sm font-medium">仅PO回复</label>
-											</div>
-										</div>
-									</div>
-								{/if}
-							</Card.Content>
-							<Card.Footer>
-								{#if Button}
-									<Button
-										on:click={downloadFile}
-										disabled={downloadLoading || !selectedThread}
-										class="w-full"
-									>
-										{downloadLoading ? '生成中...' : '下载文件'}
-									</Button>
-								{/if}
-							</Card.Footer>
-						</Card.Root>
-					{/if}
-				</Tabs.Content>
-			</Tabs.Root>
-		{:else}
-			<!-- Fallback for when components are loading -->
-			<div class="py-8 text-center">
-				<p class="text-muted-foreground">加载组件中...</p>
-			</div>
-		{/if}
+			<!-- Download Tab -->
+			<Tabs.Content value="download" class="mt-6">
+				<Card.Root>
+					<Card.Header>
+						<Card.Title>下载文件</Card.Title>
+						<Card.Description>选择格式和模式下载已缓存的串</Card.Description>
+					</Card.Header>
+					<Card.Content class="space-y-6">
+						<!-- Thread Selection -->
+						<div class="space-y-2">
+							<Label>选择串</Label>
+							{#if cachedThreads.length > 0}
+								<select
+									bind:value={selectedThread}
+									class="border-border bg-background w-full rounded-md border p-2"
+								>
+									<option value="">请选择要下载的串</option>
+									{#each cachedThreads as thread}
+										<option value={thread.id}>
+											{thread.title === '无标题'
+												? `串号: ${thread.id}`
+												: `${thread.title} (${thread.id})`}
+										</option>
+									{/each}
+								</select>
+							{:else}
+								<p class="text-muted-foreground text-sm">暂无可下载的串，请先备份一些串</p>
+							{/if}
+						</div>
+
+						<Separator />
+
+						<!-- Format Selection -->
+						<div class="space-y-3">
+							<Label>文件格式</Label>
+							<div class="grid grid-cols-2 gap-3">
+								<div class="flex items-center space-x-2">
+									<input
+										type="radio"
+										id="format-text"
+										bind:group={downloadFormat}
+										value="text"
+										class="h-4 w-4"
+									/>
+									<label for="format-text" class="text-sm font-medium">文本 (.txt)</label>
+								</div>
+								<div class="flex items-center space-x-2">
+									<input
+										type="radio"
+										id="format-markdown"
+										bind:group={downloadFormat}
+										value="markdown"
+										class="h-4 w-4"
+									/>
+									<label for="format-markdown" class="text-sm font-medium">Markdown (.md)</label>
+								</div>
+							</div>
+						</div>
+
+						<!-- Mode Selection -->
+						<div class="space-y-3">
+							<Label>下载模式</Label>
+							<div class="grid grid-cols-2 gap-3">
+								<div class="flex items-center space-x-2">
+									<input
+										type="radio"
+										id="mode-all"
+										bind:group={downloadMode}
+										value="all"
+										class="h-4 w-4"
+									/>
+									<label for="mode-all" class="text-sm font-medium">全部回复</label>
+								</div>
+								<div class="flex items-center space-x-2">
+									<input
+										type="radio"
+										id="mode-po"
+										bind:group={downloadMode}
+										value="po"
+										class="h-4 w-4"
+									/>
+									<label for="mode-po" class="text-sm font-medium">仅PO回复</label>
+								</div>
+							</div>
+						</div>
+					</Card.Content>
+					<Card.Footer>
+						<Button
+							onclick={downloadFile}
+							disabled={downloadLoading || !selectedThread}
+							class="w-full"
+						>
+							{downloadLoading ? '生成中...' : '下载文件'}
+						</Button>
+					</Card.Footer>
+				</Card.Root>
+			</Tabs.Content>
+		</Tabs.Root>
 	</div>
 </div>
