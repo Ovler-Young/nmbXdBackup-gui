@@ -44,7 +44,7 @@
 				(a, b) => new Date(b.lastReplyTime).getTime() - new Date(a.lastReplyTime).getTime()
 			);
 		} else if (sortBy === 'threadId') {
-			cachedThreads.sort((a, b) => parseInt(b.id) - parseInt(a.id));
+			cachedThreads.sort((a, b) => parseInt(a.id) - parseInt(b.id));
 		}
 		cachedThreads = [...cachedThreads]; // Trigger reactivity
 	}
