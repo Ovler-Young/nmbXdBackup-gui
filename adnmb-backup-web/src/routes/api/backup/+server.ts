@@ -5,6 +5,7 @@ import * as path from 'path';
 import zlib from 'zlib';
 import { promisify } from 'util';
 import { Buffer } from 'buffer';
+import { convertToText, convertToTextPoOnly, convertToMarkdown, convertToMarkdownPoOnly } from '../../../lib/converter';
 
 const gunzip = promisify(zlib.gunzip);
 
@@ -100,10 +101,13 @@ export const POST: RequestHandler = async ({ request }) => {
         const cachePath = path.join(cacheDir, `${threadId}.json`);
         fs.writeFileSync(cachePath, JSON.stringify(firstPageData, null, 4));
 
+        convertToText(threadId);
+        convertToTextPoOnly(threadId);
+        convertToMarkdown(threadId);
+        convertToMarkdownPoOnly(threadId);
+
         return json({ message: `Backup for thread ${threadId} successful` });
     } catch (error) {
-        // log the error
-        console.error(error);
         if (error instanceof Error) {
             return json({ message: error.message }, { status: 500 });
         }
