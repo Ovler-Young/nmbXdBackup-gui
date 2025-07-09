@@ -2,12 +2,8 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import * as fs from 'fs';
 import * as path from 'path';
-import zlib from 'zlib';
-import { promisify } from 'util';
-import { Buffer } from 'buffer';
 import { convertToText, convertToTextPoOnly, convertToMarkdown, convertToMarkdownPoOnly } from '../../../lib/converter';
 
-const gunzip = promisify(zlib.gunzip);
 
 const proxyPath = path.resolve('proxy.txt');
 const proxyExists = fs.existsSync(proxyPath);
@@ -39,9 +35,7 @@ const getDomainFromUrl = (url: string) => {
 
 const fetchPage = async (url: string, headers: Record<string, string>) => {
     const response = await fetch(url, { headers });
-    const buffer = await response.arrayBuffer();
-    const decompressed = await gunzip(Buffer.from(buffer));
-    return JSON.parse(decompressed.toString());
+    return response.json();
 }
 
 export const POST: RequestHandler = async ({ request }) => {
