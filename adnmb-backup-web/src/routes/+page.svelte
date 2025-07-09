@@ -11,7 +11,7 @@
 	let threadId = '';
 	let loading = false;
 	let message = '';
-	let messageTimeout: number;
+	let messageTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	// Cached threads
 	let cachedThreads: any[] = [];
