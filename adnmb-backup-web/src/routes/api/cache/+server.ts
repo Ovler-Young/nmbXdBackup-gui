@@ -26,11 +26,20 @@ export const GET: RequestHandler = async () => {
 					const replyCount = data.ReplyCount || 0;
 					const cachedAt = fs.statSync(filePath).mtime;
 
+					// Get the last reply time for sorting by latest update
+					let lastReplyTime = data.now; // Original post time
+					if (data.Replies && data.Replies.length > 0) {
+						// Get the time of the last reply
+						const lastReply = data.Replies[data.Replies.length - 1];
+						lastReplyTime = lastReply.now;
+					}
+
 					cachedThreads.push({
 						id: threadId,
 						title,
 						replyCount: parseInt(replyCount, 10),
 						cachedAt: cachedAt.toISOString(),
+						lastReplyTime: lastReplyTime,
 						hasImage: !!data.img,
 						author: data.user_hash || 'Anonymous'
 					});
@@ -40,8 +49,10 @@ export const GET: RequestHandler = async () => {
 			}
 		}
 
-		// Sort by cached date, newest first
-		cachedThreads.sort((a, b) => new Date(b.cachedAt).getTime() - new Date(a.cachedAt).getTime());
+		// Sort by last reply time, newest first (default sorting)
+		cachedThreads.sort(
+			(a, b) => new Date(b.lastReplyTime).getTime() - new Date(a.lastReplyTime).getTime()
+		);
 
 		return json({ cached: cachedThreads });
 	} catch (error) {

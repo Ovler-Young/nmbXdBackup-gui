@@ -4,35 +4,87 @@
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
-	import * as Select from '$lib/components/ui/select/index.js';
-	import * as Tabs from '$lib/components/ui/tabs/index.js';
-	import { Separator } from '$lib/components/ui/separator/index.js';
+	import SvelteMarkdown from '@humanspeak/svelte-markdown';
 
 	// State management
 	let threadId = '';
 	let loading = false;
 	let message = '';
-	let activeTab = 'backup';
+	let messageTimeout: number;
 
 	// Cached threads
 	let cachedThreads: any[] = [];
 	let loadingCache = false;
+	let sortBy = 'lastReply'; // 'lastReply' or 'threadId'
 
-	// Download options
-	let selectedThread = '';
-	let downloadFormat = 'text';
-	let downloadMode = 'all';
-	let downloadLoading = false;
+	// Markdown viewer options
+	let viewingMarkdown = '';
+	let markdownMode = 'all';
+	let markdownContent = '';
+	let markdownLoading = false;
 
-	// Load cached threads
+	// Set message with auto-hide for success messages
+	function setMessage(msg: string, isSuccess: boolean = false) {
+		message = msg;
+		if (messageTimeout) {
+			clearTimeout(messageTimeout);
+		}
+		if (isSuccess) {
+			messageTimeout = setTimeout(() => {
+				message = '';
+			}, 3000); // Hide success messages after 3 seconds
+		}
+	}
+
+	// Sort cached threads
+	function sortCachedThreads() {
+		if (sortBy === 'lastReply') {
+			cachedThreads.sort(
+				(a, b) => new Date(b.lastReplyTime).getTime() - new Date(a.lastReplyTime).getTime()
+			);
+		} else if (sortBy === 'threadId') {
+			cachedThreads.sort((a, b) => parseInt(b.id) - parseInt(a.id));
+		}
+		cachedThreads = [...cachedThreads]; // Trigger reactivity
+	}
+
+	// Load cached threads (just reload the cache list)
 	async function loadCachedThreads() {
 		loadingCache = true;
 		try {
 			const response = await fetch('/api/cache');
 			const data = await response.json();
 			cachedThreads = data.cached || [];
+			sortCachedThreads();
 		} catch (error) {
 			console.error('Error loading cached threads:', error);
+		} finally {
+			loadingCache = false;
+		}
+	}
+
+	// Refresh all cached threads from remote API
+	async function refreshAllCachedThreads() {
+		loadingCache = true;
+		setMessage('正在刷新所有缓存...');
+
+		try {
+			const response = await fetch('/api/refresh-all', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' }
+			});
+
+			const data = await response.json();
+
+			if (response.ok) {
+				setMessage(data.message, true);
+				// Reload the cache list after refreshing
+				await loadCachedThreads();
+			} else {
+				setMessage(`刷新失败: ${data.message}`);
+			}
+		} catch (error) {
+			setMessage(`刷新失败: ${error instanceof Error ? error.message : '未知错误'}`);
 		} finally {
 			loadingCache = false;
 		}
@@ -41,12 +93,12 @@
 	// Backup thread function
 	async function backupThread() {
 		if (!threadId.trim()) {
-			message = '请输入串号';
+			setMessage('请输入串号');
 			return;
 		}
 
 		loading = true;
-		message = '正在备份...';
+		setMessage('正在备份...');
 
 		try {
 			const response = await fetch('/api/backup', {
@@ -56,44 +108,41 @@
 			});
 
 			if (response.ok) {
-				message = `备份 ${threadId} 成功`;
+				setMessage(`备份 ${threadId} 成功`, true);
 				threadId = '';
 				// Reload cached threads
 				await loadCachedThreads();
 			} else {
 				const error = await response.json();
-				message = `备份 ${threadId} 失败: ${error.message}`;
+				setMessage(`备份 ${threadId} 失败: ${error.message}`);
 			}
 		} catch (error) {
-			message = `备份失败: ${error instanceof Error ? error.message : '未知错误'}`;
+			setMessage(`备份失败: ${error instanceof Error ? error.message : '未知错误'}`);
 		} finally {
 			loading = false;
 		}
 	}
 
-	// Re-add cached thread to backup queue
-	function reAddThread(id: string) {
+	// Refresh single cached thread
+	function refreshSingleThread(id: string) {
 		threadId = id;
-		activeTab = 'backup';
+		backupThread();
 	}
 
-	// Download file
-	async function downloadFile() {
-		if (!selectedThread) {
-			message = '请选择要下载的串';
-			return;
-		}
+	// Download file with specific format and mode
+	async function downloadWithFormat(threadId: string, formatMode: string) {
+		if (!formatMode) return; // No option selected
 
-		downloadLoading = true;
+		const [format, mode] = formatMode.split('-');
 
 		try {
 			const response = await fetch('/api/download', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
-					threadId: selectedThread,
-					format: downloadFormat,
-					mode: downloadMode
+					threadId: threadId,
+					format: format,
+					mode: mode
 				})
 			});
 
@@ -111,20 +160,72 @@
 				document.body.removeChild(link);
 				URL.revokeObjectURL(url);
 
-				message = `下载成功: ${data.filename}`;
+				setMessage(`下载成功: ${data.filename}`, true);
 			} else {
-				message = `下载失败: ${data.error}`;
+				setMessage(`下载失败: ${data.error}`);
 			}
 		} catch (error) {
-			message = `下载失败: ${error instanceof Error ? error.message : '未知错误'}`;
-		} finally {
-			downloadLoading = false;
+			setMessage(`下载失败: ${error instanceof Error ? error.message : '未知错误'}`);
 		}
+
+		// Reset the select back to default
+		const selectElement = document.querySelector(
+			`select[onchange*="${threadId}"]`
+		) as HTMLSelectElement;
+		if (selectElement) {
+			selectElement.value = '';
+		}
+	}
+
+	// Load markdown content for viewing
+	async function loadMarkdownContent(threadId: string, mode: string = 'all') {
+		markdownLoading = true;
+		markdownContent = '';
+		viewingMarkdown = threadId;
+		markdownMode = mode;
+
+		try {
+			const response = await fetch('/api/download', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					threadId: threadId,
+					format: 'markdown',
+					mode: mode
+				})
+			});
+
+			const data = await response.json();
+
+			if (response.ok) {
+				markdownContent = data.content;
+				setMessage('加载成功', true);
+			} else {
+				setMessage(`加载失败: ${data.error}`);
+				viewingMarkdown = '';
+			}
+		} catch (error) {
+			setMessage(`加载失败: ${error instanceof Error ? error.message : '未知错误'}`);
+			viewingMarkdown = '';
+		} finally {
+			markdownLoading = false;
+		}
+	}
+
+	// Close markdown viewer
+	function closeMarkdownViewer() {
+		viewingMarkdown = '';
+		markdownContent = '';
 	}
 
 	// Format date
 	function formatDate(dateString: string) {
 		return new Date(dateString).toLocaleString('zh-CN');
+	}
+
+	// Format last reply time
+	function formatLastReplyTime(timeString: string) {
+		return new Date(timeString).toLocaleString('zh-CN');
 	}
 
 	// Load cached threads on mount
@@ -136,7 +237,7 @@
 		<!-- Header -->
 		<div class="mb-8 text-center">
 			<h1 class="text-foreground mb-2 text-4xl font-bold">AdnmbBackup</h1>
-			<p class="text-muted-foreground">匿名版备份工具 - 简单、快速、可靠</p>
+			<p class="text-muted-foreground">匿名版备份工具</p>
 		</div>
 
 		<!-- Message display -->
@@ -146,195 +247,210 @@
 			</div>
 		{/if}
 
-		<!-- Main content -->
-		<Tabs.Root bind:value={activeTab} class="w-full">
-			<Tabs.List class="grid w-full grid-cols-3">
-				<Tabs.Trigger value="backup">备份串</Tabs.Trigger>
-				<Tabs.Trigger value="cache">已缓存</Tabs.Trigger>
-				<Tabs.Trigger value="download">下载文件</Tabs.Trigger>
-			</Tabs.List>
+		<!-- Backup Section -->
+		<Card.Root class="mb-6">
+			<Card.Header>
+				<Card.Title>备份新串</Card.Title>
+			</Card.Header>
+			<Card.Content>
+				<Input
+					id="thread-id"
+					bind:value={threadId}
+					placeholder="请输入串号开始备份，例如: 52752005"
+					disabled={loading}
+				/>
+			</Card.Content>
+			<Card.Footer>
+				<Button onclick={backupThread} disabled={loading || !threadId.trim()} class="w-full">
+					{loading ? '备份中...' : '开始备份'}
+				</Button>
+			</Card.Footer>
+		</Card.Root>
 
-			<!-- Backup Tab -->
-			<Tabs.Content value="backup" class="mt-6">
-				<Card.Root>
-					<Card.Header>
-						<Card.Title>备份新串</Card.Title>
-						<Card.Description>输入串号开始备份</Card.Description>
-					</Card.Header>
-					<Card.Content class="space-y-4">
-						<div class="space-y-2">
-							<Label for="thread-id">串号</Label>
-							<Input
-								id="thread-id"
-								bind:value={threadId}
-								placeholder="请输入串号，例如: 12345678"
-								disabled={loading}
-							/>
-						</div>
-					</Card.Content>
-					<Card.Footer>
-						<Button onclick={backupThread} disabled={loading || !threadId.trim()} class="w-full">
-							{loading ? '备份中...' : '开始备份'}
-						</Button>
-					</Card.Footer>
-				</Card.Root>
-			</Tabs.Content>
-
-			<!-- Cache Tab -->
-			<Tabs.Content value="cache" class="mt-6">
-				<Card.Root>
-					<Card.Header class="flex flex-row items-center justify-between">
-						<div>
-							<Card.Title>已缓存的串</Card.Title>
-							<Card.Description>查看和重新添加已缓存的串</Card.Description>
-						</div>
+		<!-- Cached Threads Section -->
+		<Card.Root>
+			<Card.Header>
+				<div class="flex flex-row items-center justify-between">
+					<div>
+						<Card.Title>已缓存的串</Card.Title>
+						<Card.Description>查看、阅读和下载已缓存的串</Card.Description>
+					</div>
+					<div class="flex items-center gap-3">
 						<Button variant="outline" onclick={loadCachedThreads} disabled={loadingCache}>
-							{loadingCache ? '加载中...' : '刷新'}
+							{loadingCache ? '加载中...' : '重新加载'}
 						</Button>
-					</Card.Header>
-					<Card.Content>
-						{#if loadingCache}
-							<div class="py-8 text-center">
-								<p class="text-muted-foreground">加载中...</p>
-							</div>
-						{:else if cachedThreads.length === 0}
-							<div class="py-8 text-center">
-								<p class="text-muted-foreground">暂无缓存数据</p>
-							</div>
-						{:else}
-							<div class="space-y-4">
+						<Button variant="outline" onclick={refreshAllCachedThreads} disabled={loadingCache}>
+							{loadingCache ? '刷新中...' : '刷新所有本地缓存'}
+						</Button>
+					</div>
+				</div>
+				<div class="mt-4 flex items-center gap-4">
+					<Label>排序方式:</Label>
+					<div class="flex gap-3">
+						<div class="flex items-center space-x-2">
+							<input
+								type="radio"
+								id="sort-last-reply"
+								value="lastReply"
+								bind:group={sortBy}
+								onchange={sortCachedThreads}
+								class="h-4 w-4"
+							/>
+							<label for="sort-last-reply" class="text-sm font-medium">按最近更新</label>
+						</div>
+						<div class="flex items-center space-x-2">
+							<input
+								type="radio"
+								id="sort-thread-id"
+								value="threadId"
+								bind:group={sortBy}
+								onchange={sortCachedThreads}
+								class="h-4 w-4"
+							/>
+							<label for="sort-thread-id" class="text-sm font-medium">按串号排序</label>
+						</div>
+					</div>
+				</div>
+			</Card.Header>
+			<Card.Content>
+				{#if loadingCache}
+					<div class="py-8 text-center">
+						<p class="text-muted-foreground">加载中...</p>
+					</div>
+				{:else if cachedThreads.length === 0}
+					<div class="py-8 text-center">
+						<p class="text-muted-foreground">暂无缓存数据</p>
+					</div>
+				{:else}
+					<div class="overflow-x-auto">
+						<table class="w-full border-collapse">
+							<thead>
+								<tr class="border-border border-b">
+									<th class="px-4 py-3 text-left font-medium">标题</th>
+									<th class="px-4 py-3 text-left font-medium">串号</th>
+									<th class="px-4 py-3 text-left font-medium">回复数</th>
+									<th class="px-4 py-3 text-left font-medium">作者</th>
+									<th class="px-4 py-3 text-left font-medium">最近更新</th>
+									<th class="px-4 py-3 text-left font-medium">操作</th>
+								</tr>
+							</thead>
+							<tbody>
 								{#each cachedThreads as thread}
-									<div
-										class="border-border hover:bg-muted/50 rounded-lg border p-4 transition-colors"
-									>
-										<div class="flex items-start justify-between">
-											<div class="flex-1">
-												<h3 class="text-card-foreground font-semibold">
+									<tr class="border-border hover:bg-muted/50 border-b transition-colors">
+										<td class="px-4 py-3">
+											<div class="flex items-center gap-2">
+												<span class="font-medium">
 													{thread.title === '无标题' ? `串号: ${thread.id}` : thread.title}
-												</h3>
-												<div class="text-muted-foreground mt-1 space-y-1 text-sm">
-													<p>串号: {thread.id}</p>
-													<p>回复数: {thread.replyCount}</p>
-													<p>作者: {thread.author}</p>
-													<p>缓存时间: {formatDate(thread.cachedAt)}</p>
-													{#if thread.hasImage}
-														<span
-															class="bg-primary/10 text-primary inline-flex items-center rounded-full px-2 py-1 text-xs"
-														>
-															有图片
-														</span>
-													{/if}
-												</div>
+												</span>
+												{#if thread.hasImage}
+													<span
+														class="bg-primary/10 text-primary inline-flex items-center rounded-full px-2 py-1 text-xs"
+													>
+														有图片
+													</span>
+												{/if}
 											</div>
-											<Button variant="outline" size="sm" onclick={() => reAddThread(thread.id)}>
-												重新备份
-											</Button>
-										</div>
-									</div>
+										</td>
+										<td class="text-muted-foreground px-4 py-3">{thread.id}</td>
+										<td class="text-muted-foreground px-4 py-3">{thread.replyCount}</td>
+										<td class="text-muted-foreground px-4 py-3">{thread.author}</td>
+										<td class="text-muted-foreground px-4 py-3 text-sm"
+											>{formatLastReplyTime(thread.lastReplyTime)}</td
+										>
+										<td class="px-4 py-3">
+											<div class="flex gap-2">
+												<Button
+													variant="outline"
+													size="sm"
+													onclick={() => refreshSingleThread(thread.id)}
+												>
+													刷新
+												</Button>
+												<Button
+													variant="outline"
+													size="sm"
+													onclick={() => loadMarkdownContent(thread.id, 'all')}
+													disabled={markdownLoading}
+												>
+													{markdownLoading && viewingMarkdown === thread.id ? '加载中...' : '阅读'}
+												</Button>
+												<select
+													onchange={(e) => downloadWithFormat(thread.id, e.target.value)}
+													class="border-border bg-background rounded border px-2 py-1 text-sm"
+												>
+													<option value="">下载</option>
+													<option value="text-all">文本(全部)</option>
+													<option value="text-po">文本(PO)</option>
+													<option value="markdown-all">Markdown(全部)</option>
+													<option value="markdown-po">Markdown(PO)</option>
+												</select>
+											</div>
+										</td>
+									</tr>
+									{#if viewingMarkdown === thread.id}
+										<tr>
+											<td colspan="6" class="bg-muted/30 px-4 py-4">
+												<div class="mb-3 flex items-center justify-between">
+													<div class="flex items-center gap-4">
+														<Label>显示模式:</Label>
+														<div class="flex gap-3">
+															<div class="flex items-center space-x-2">
+																<input
+																	type="radio"
+																	id="markdown-mode-all-{thread.id}"
+																	value="all"
+																	bind:group={markdownMode}
+																	onchange={() => loadMarkdownContent(thread.id, 'all')}
+																	class="h-4 w-4"
+																/>
+																<label
+																	for="markdown-mode-all-{thread.id}"
+																	class="text-sm font-medium">全部回复</label
+																>
+															</div>
+															<div class="flex items-center space-x-2">
+																<input
+																	type="radio"
+																	id="markdown-mode-po-{thread.id}"
+																	value="po"
+																	bind:group={markdownMode}
+																	onchange={() => loadMarkdownContent(thread.id, 'po')}
+																	class="h-4 w-4"
+																/>
+																<label
+																	for="markdown-mode-po-{thread.id}"
+																	class="text-sm font-medium">仅PO回复</label
+																>
+															</div>
+														</div>
+													</div>
+													<Button variant="outline" size="sm" onclick={closeMarkdownViewer}>
+														关闭
+													</Button>
+												</div>
+
+												{#if markdownContent}
+													<div
+														class="bg-background border-border max-h-96 overflow-y-auto rounded-lg border p-4"
+													>
+														<div class="prose prose-sm dark:prose-invert max-w-none">
+															<SvelteMarkdown source={markdownContent} />
+														</div>
+													</div>
+												{:else if markdownLoading}
+													<div class="py-8 text-center">
+														<p class="text-muted-foreground">正在加载Markdown内容...</p>
+													</div>
+												{/if}
+											</td>
+										</tr>
+									{/if}
 								{/each}
-							</div>
-						{/if}
-					</Card.Content>
-				</Card.Root>
-			</Tabs.Content>
-
-			<!-- Download Tab -->
-			<Tabs.Content value="download" class="mt-6">
-				<Card.Root>
-					<Card.Header>
-						<Card.Title>下载文件</Card.Title>
-						<Card.Description>选择格式和模式下载已缓存的串</Card.Description>
-					</Card.Header>
-					<Card.Content class="space-y-6">
-						<!-- Thread Selection -->
-						<div class="space-y-2">
-							<Label>选择串</Label>
-							{#if cachedThreads.length > 0}
-								<select
-									bind:value={selectedThread}
-									class="border-border bg-background w-full rounded-md border p-2"
-								>
-									<option value="">请选择要下载的串</option>
-									{#each cachedThreads as thread}
-										<option value={thread.id}>
-											{thread.title === '无标题'
-												? `串号: ${thread.id}`
-												: `${thread.title} (${thread.id})`}
-										</option>
-									{/each}
-								</select>
-							{:else}
-								<p class="text-muted-foreground text-sm">暂无可下载的串，请先备份一些串</p>
-							{/if}
-						</div>
-
-						<Separator />
-
-						<!-- Format Selection -->
-						<div class="space-y-3">
-							<Label>文件格式</Label>
-							<div class="grid grid-cols-2 gap-3">
-								<div class="flex items-center space-x-2">
-									<input
-										type="radio"
-										id="format-text"
-										bind:group={downloadFormat}
-										value="text"
-										class="h-4 w-4"
-									/>
-									<label for="format-text" class="text-sm font-medium">文本 (.txt)</label>
-								</div>
-								<div class="flex items-center space-x-2">
-									<input
-										type="radio"
-										id="format-markdown"
-										bind:group={downloadFormat}
-										value="markdown"
-										class="h-4 w-4"
-									/>
-									<label for="format-markdown" class="text-sm font-medium">Markdown (.md)</label>
-								</div>
-							</div>
-						</div>
-
-						<!-- Mode Selection -->
-						<div class="space-y-3">
-							<Label>下载模式</Label>
-							<div class="grid grid-cols-2 gap-3">
-								<div class="flex items-center space-x-2">
-									<input
-										type="radio"
-										id="mode-all"
-										bind:group={downloadMode}
-										value="all"
-										class="h-4 w-4"
-									/>
-									<label for="mode-all" class="text-sm font-medium">全部回复</label>
-								</div>
-								<div class="flex items-center space-x-2">
-									<input
-										type="radio"
-										id="mode-po"
-										bind:group={downloadMode}
-										value="po"
-										class="h-4 w-4"
-									/>
-									<label for="mode-po" class="text-sm font-medium">仅PO回复</label>
-								</div>
-							</div>
-						</div>
-					</Card.Content>
-					<Card.Footer>
-						<Button
-							onclick={downloadFile}
-							disabled={downloadLoading || !selectedThread}
-							class="w-full"
-						>
-							{downloadLoading ? '生成中...' : '下载文件'}
-						</Button>
-					</Card.Footer>
-				</Card.Root>
-			</Tabs.Content>
-		</Tabs.Root>
+							</tbody>
+						</table>
+					</div>
+				{/if}
+			</Card.Content>
+		</Card.Root>
 	</div>
 </div>

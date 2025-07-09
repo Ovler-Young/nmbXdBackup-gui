@@ -55,5 +55,8 @@
 		"onlyBuiltDependencies": [
 			"esbuild"
 		]
+	},
+	"dependencies": {
+		"@humanspeak/svelte-markdown": "^0.8.7"
 	}
 }
