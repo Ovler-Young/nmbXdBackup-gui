@@ -65,9 +65,8 @@ jobs:
         run: |
           cd adnmb-backup-web
           if [ -d "build" ]; then
-            tar -czf "../adnmb-backup-web-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz" -C build .
-          elif [ -d ".svelte-kit/output" ]; then
-            tar -czf "../adnmb-backup-web-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz" -C .svelte-kit/output .
+            # Node adapter creates a build directory with the full application
+            tar -czf "../adnmb-backup-web-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz" build/
           else
             echo "Build directory not found"
             ls -la
