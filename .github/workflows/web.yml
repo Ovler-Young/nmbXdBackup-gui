@@ -164,7 +164,15 @@ jobs:
             exit 1
           fi
 
-      - name: Clean up intermediate files
+      - name: Clean up intermediate files (Windows)
+        if: matrix.platform == 'win'
+        working-directory: ./adnmb-backup-web
+        shell: powershell
+        run: |
+          Remove-Item -Path "sea-prep.blob" -Force -ErrorAction SilentlyContinue
+
+      - name: Clean up intermediate files (Unix)
+        if: matrix.platform != 'win'
         working-directory: ./adnmb-backup-web
         run: |
           rm -f sea-prep.blob
