@@ -6,7 +6,7 @@ async function startServer() {
 	try {
 		// Import the ES module server using pathToFileURL
 		const indexPath = path.join(__dirname, 'build', 'index.js');
-		const serverModule = await import(pathToFileURL(indexPath));
+		await import(pathToFileURL(indexPath));
 		console.log('SvelteKit server started successfully!');
 
 		// The server starts automatically when the module is imported
