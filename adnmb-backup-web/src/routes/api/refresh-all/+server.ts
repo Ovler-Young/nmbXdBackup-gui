@@ -8,71 +8,15 @@ import {
 	convertToMarkdown,
 	convertToMarkdownPoOnly
 } from '../../../lib/converter';
-
-// Function to normalize time format to ISO 8601
-function normalizeTimeFormat(timeValue: string | number | Date | null | undefined): string {
-	if (!timeValue) {
-		return new Date().toISOString();
-	}
-
-	// If it's already a valid Date object or ISO string, return ISO format
-	try {
-		const date = new Date(timeValue);
-		if (!isNaN(date.getTime())) {
-			return date.toISOString();
-		}
-	} catch {
-		// Fall through to timestamp handling
-	}
-
-	// Try to handle as Unix timestamp (seconds or milliseconds)
-	if (typeof timeValue === 'number' || typeof timeValue === 'string') {
-		const numValue = typeof timeValue === 'string' ? parseInt(timeValue, 10) : timeValue;
-
-		if (!isNaN(numValue)) {
-			// If it looks like a Unix timestamp in seconds (less than year 2100)
-			if (numValue < 4102444800) {
-				return new Date(numValue * 1000).toISOString();
-			}
-			// If it looks like a Unix timestamp in milliseconds
-			else if (numValue > 1000000000000) {
-				return new Date(numValue).toISOString();
-			}
-		}
-	}
-
-	// If all else fails, return current time
-	console.warn(`Unable to parse time value: ${timeValue}, using current time`);
-	return new Date().toISOString();
-}
-
-const proxyPath = path.resolve('proxy.txt');
-const proxyExists = fs.existsSync(proxyPath);
-
-const getApiBaseUrl = () => {
-	if (proxyExists) {
-		const url = fs.readFileSync(proxyPath, 'utf-8').trim();
-		return url.endsWith('/') ? url.slice(0, -1) : url;
-	}
-	return 'https://api.nmb.best';
-};
-
-const getCookie = () => {
-	const cookiePath = path.resolve('cookie.txt');
-	if (fs.existsSync(cookiePath)) {
-		return fs.readFileSync(cookiePath, 'utf-8').trim();
-	}
-	return null;
-};
-
-const getDomainFromUrl = (url: string) => {
-	try {
-		const uri = new URL(url);
-		return uri.hostname;
-	} catch {
-		return 'api.nmb.best'; // Fallback to default
-	}
-};
+import { getCookie, getDomainFromUrl } from '../../../lib/utils/config';
+import {
+	getOrCreateUUID,
+	getApiBaseUrl,
+	proxyExists,
+	fetchFeedData,
+	initializeFeed,
+	subscribeToFeed
+} from '../../../lib/utils/feed-utils';
 
 const fetchPage = async (url: string, headers: Record<string, string>) => {
 	const response = await fetch(url, { headers });
@@ -135,7 +79,9 @@ const updateSingleThread = async (
 
 export const POST: RequestHandler = async () => {
 	const cookie = getCookie();
-	if (!cookie && !proxyExists) {
+	const hasProxy = proxyExists();
+
+	if (!cookie && !hasProxy) {
 		return json({ message: 'cookie.txt not found' }, { status: 400 });
 	}
 
@@ -158,10 +104,40 @@ export const POST: RequestHandler = async () => {
 			return json({ message: 'No cache directory found' }, { status: 404 });
 		}
 
-		const files = fs.readdirSync(cacheDir);
-		const cachedThreads = [];
+		const uuid = getOrCreateUUID();
 
-		// Get all cached threads with their last reply times
+		// 初始化 feed
+		const feedInitialized = await initializeFeed(apiBaseUrl, uuid);
+		if (!feedInitialized) {
+			console.log('Feed 初始化失败，尝试从缓存引导');
+		}
+
+		let feedData = await fetchFeedData(apiBaseUrl, uuid, 5);
+
+		if (feedData.length === 0) {
+			console.log('Feed 为空，尝试将缓存中的串添加到 feed 中...');
+
+			const files = fs.readdirSync(cacheDir).filter((file) => file.endsWith('.json'));
+			const cachedThreadIds = files.map((file) => file.replace('.json', ''));
+
+			if (cachedThreadIds.length > 0) {
+				const success = await subscribeToFeed(apiBaseUrl, uuid, cachedThreadIds);
+
+				if (success) {
+					feedData = await fetchFeedData(apiBaseUrl, uuid, 5);
+				}
+			}
+		}
+
+		if (feedData.length === 0) {
+			return json({ message: 'Feed 好像还是空的，哪里出问题了嘞？' }, { status: 500 });
+		}
+
+		console.log(`获取到 ${feedData.length} 个串的 feed 信息`);
+
+		const files = fs.readdirSync(cacheDir);
+		const cachedThreads = new Map();
+
 		for (const file of files) {
 			if (file.endsWith('.json')) {
 				try {
@@ -170,18 +146,13 @@ export const POST: RequestHandler = async () => {
 					const data = JSON.parse(content);
 
 					const threadId = file.replace('.json', '');
+					const cachedReplyCount = parseInt(data.ReplyCount || '0', 10);
 
-					// Get the last reply time for sorting by latest update
-					let lastReplyTime = data.now; // Original post time
-					if (data.Replies && data.Replies.length > 0) {
-						// Get the time of the last reply
-						const lastReply = data.Replies[data.Replies.length - 1];
-						lastReplyTime = lastReply.now;
-					}
-
-					cachedThreads.push({
+					cachedThreads.set(threadId, {
 						id: threadId,
-						lastReplyTime: normalizeTimeFormat(lastReplyTime)
+						cachedReplyCount,
+						title: data.title || '无标题',
+						filePath
 					});
 				} catch (error) {
 					console.error(`Error reading cache file ${file}:`, error);
@@ -189,35 +160,87 @@ export const POST: RequestHandler = async () => {
 			}
 		}
 
-		// Sort by last reply time, newest first
-		cachedThreads.sort(
-			(a, b) => new Date(b.lastReplyTime).getTime() - new Date(a.lastReplyTime).getTime()
-		);
-
 		const results = [];
 		let successCount = 0;
 		let failCount = 0;
+		let skippedCount = 0;
+		const newThreadsFound = [];
 
-		// Update each thread one by one in order
-		for (const thread of cachedThreads) {
-			const result = await updateSingleThread(thread.id, headers, apiBaseUrl);
-			results.push(result);
+		for (const feedItem of feedData) {
+			const threadId = feedItem.id;
+			const currentReplyCount = parseInt(feedItem.reply_count || '0', 10);
+			const cachedThread = cachedThreads.get(threadId);
 
-			if (result.success) {
-				successCount++;
-			} else {
-				failCount++;
+			if (!cachedThread) {
+				// 新发现的串
+				newThreadsFound.push({
+					id: threadId,
+					title: feedItem.title || '无标题',
+					replyCount: currentReplyCount,
+					userHash: feedItem.user_hash
+				});
+				continue;
 			}
 
-			// Add a small delay to avoid overwhelming the API
-			await new Promise((resolve) => setTimeout(resolve, 500));
+			// 检查是否有更新
+			if (currentReplyCount > cachedThread.cachedReplyCount) {
+				const result = await updateSingleThread(threadId, headers, apiBaseUrl);
+				results.push({
+					...result,
+					oldReplyCount: cachedThread.cachedReplyCount,
+					newReplyCount: currentReplyCount,
+					title: cachedThread.title
+				});
+
+				if (result.success) {
+					successCount++;
+				} else {
+					failCount++;
+				}
+
+				await new Promise((resolve) => setTimeout(resolve, 500));
+			} else if (currentReplyCount === cachedThread.cachedReplyCount) {
+				// 没有更新，跳过
+				skippedCount++;
+				results.push({
+					success: true,
+					threadId,
+					skipped: true,
+					message: '无更新',
+					title: cachedThread.title
+				});
+			} else {
+				// 回复数减少了
+				const result = await updateSingleThread(threadId, headers, apiBaseUrl);
+				results.push({
+					...result,
+					oldReplyCount: cachedThread.cachedReplyCount,
+					newReplyCount: currentReplyCount,
+					title: cachedThread.title,
+					decreased: true
+				});
+
+				if (result.success) {
+					successCount++;
+				} else {
+					failCount++;
+				}
+
+				await new Promise((resolve) => setTimeout(resolve, 500));
+			}
 		}
 
 		return json({
-			message: `刷新完成：成功 ${successCount} 个，失败 ${failCount} 个`,
-			totalProcessed: cachedThreads.length,
+			message: `刷新完成：成功 ${successCount} 个，失败 ${failCount} 个，跳过 ${skippedCount} 个`,
+			totalProcessed: feedData.length,
 			successCount,
 			failCount,
+			skippedCount,
+			newThreadsFound: newThreadsFound.length > 0 ? newThreadsFound : undefined,
+			feedInfo: {
+				uuid,
+				totalFeedItems: feedData.length
+			},
 			results
 		});
 	} catch (error) {

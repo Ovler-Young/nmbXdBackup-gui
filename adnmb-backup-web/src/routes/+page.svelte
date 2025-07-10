@@ -5,6 +5,7 @@
 	import { Label } from '$lib/components/ui/label/index.js';
 	import SvelteMarkdown from '@humanspeak/svelte-markdown';
 	import { onMount } from 'svelte';
+	import { formatDisplayTime } from '$lib/utils/time-utils';
 
 	// Thread interface
 	interface CachedThread {
@@ -72,6 +73,10 @@
 		}
 	}
 
+	// New threads discovered during refresh
+	let newThreadsFound: { id: string; title: string; replyCount: number; userHash: string }[] = [];
+	let showNewThreads = false;
+
 	// Refresh all cached threads from remote API
 	async function refreshAllCachedThreads() {
 		loadingCache = true;
@@ -86,7 +91,21 @@
 			const data = await response.json();
 
 			if (response.ok) {
-				setMessage(data.message, true);
+				let message = data.message;
+
+				// 检查是否发现了新串
+				if (data.newThreadsFound && data.newThreadsFound.length > 0) {
+					newThreadsFound = data.newThreadsFound;
+					showNewThreads = true;
+					message += ` | 发现 ${data.newThreadsFound.length} 个新串`;
+				}
+
+				// 显示 Feed 信息
+				if (data.feedInfo) {
+					message += ` | Feed UUID: ${data.feedInfo.uuid}...`;
+				}
+
+				setMessage(message, true);
 				// Reload the cache list after refreshing
 				await loadCachedThreads();
 			} else {
@@ -97,6 +116,41 @@
 		} finally {
 			loadingCache = false;
 		}
+	}
+
+	// 新发现串
+	async function backupNewThread(threadId: string) {
+		try {
+			setMessage(`正在备份新串 ${threadId}...`);
+
+			const response = await fetch('/api/backup', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ threadId })
+			});
+
+			if (response.ok) {
+				setMessage(`新串 ${threadId} 备份成功`, true);
+				// Remove the thread from new threads list
+				newThreadsFound = newThreadsFound.filter((t) => t.id !== threadId);
+				if (newThreadsFound.length === 0) {
+					showNewThreads = false;
+				}
+				// Reload cached threads
+				await loadCachedThreads();
+			} else {
+				const error = await response.json();
+				setMessage(`备份新串 ${threadId} 失败: ${error.message}`);
+			}
+		} catch (error) {
+			setMessage(`备份失败: ${error instanceof Error ? error.message : '未知错误'}`);
+		}
+	}
+
+	// Close new threads panel
+	function closeNewThreads() {
+		showNewThreads = false;
+		newThreadsFound = [];
 	}
 
 	// Backup thread function
@@ -227,11 +281,6 @@
 		markdownContent = '';
 	}
 
-	// Format last reply time
-	function formatLastReplyTime(timeString: string) {
-		return new Date(timeString).toLocaleString('zh-CN');
-	}
-
 	// Load cached threads on client only
 	onMount(() => {
 		loadCachedThreads();
@@ -273,6 +322,56 @@
 			</Card.Footer>
 		</Card.Root>
 
+		<!-- New Threads Discovered Section -->
+		{#if showNewThreads && newThreadsFound.length > 0}
+			<Card.Root class="mb-6 border-green-200 bg-green-50">
+				<Card.Header>
+					<div class="flex items-center justify-between">
+						<div>
+							<Card.Title class="text-green-800">发现新串</Card.Title>
+							<Card.Description class="text-green-600">
+								在刷新过程中发现了 {newThreadsFound.length} 个新串，您可以选择备份它们
+							</Card.Description>
+						</div>
+						<Button variant="outline" size="sm" onclick={closeNewThreads} class="text-green-700">
+							关闭
+						</Button>
+					</div>
+				</Card.Header>
+				<Card.Content>
+					<div class="space-y-3">
+						{#each newThreadsFound as newThread (newThread.id)}
+							<div
+								class="flex items-center justify-between rounded-lg border border-green-200 bg-white p-3"
+							>
+								<div class="flex-1">
+									<div class="flex items-center gap-2">
+										<span class="font-mono text-sm text-green-700">#{newThread.id}</span>
+										<span class="font-medium">
+											{newThread.title === '无标题' || !newThread.title
+												? `串号: ${newThread.id}`
+												: newThread.title}
+										</span>
+									</div>
+									<div class="mt-1 text-sm text-green-600">
+										回复数: {newThread.replyCount} | 作者: {newThread.userHash}
+									</div>
+								</div>
+								<Button
+									variant="outline"
+									size="sm"
+									onclick={() => backupNewThread(newThread.id)}
+									class="ml-4 border-green-300 text-green-700 hover:bg-green-100"
+								>
+									备份
+								</Button>
+							</div>
+						{/each}
+					</div>
+				</Card.Content>
+			</Card.Root>
+		{/if}
+
 		<!-- Cached Threads Section -->
 		<Card.Root>
 			<Card.Header>
@@ -286,7 +385,7 @@
 							{loadingCache ? '加载中...' : '重新加载'}
 						</Button>
 						<Button variant="outline" onclick={refreshAllCachedThreads} disabled={loadingCache}>
-							{loadingCache ? '刷新中...' : '刷新所有本地缓存'}
+							{loadingCache ? '刷新中...' : '刷新缓存'}
 						</Button>
 					</div>
 				</div>
@@ -354,7 +453,7 @@
 										<td class="text-muted-foreground px-4 py-3">{thread.replyCount}</td>
 										<td class="text-muted-foreground px-4 py-3">{thread.author}</td>
 										<td class="text-muted-foreground px-4 py-3 text-sm"
-											>{formatLastReplyTime(thread.lastReplyTime)}</td
+											>{formatDisplayTime(thread.lastReplyTime)}</td
 										>
 										<td class="px-4 py-3">
 											<div class="flex gap-2">
