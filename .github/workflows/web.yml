@@ -28,12 +28,15 @@ jobs:
           - os: ubuntu-latest
             platform: linux
             arch: x64
+            ext: ""
           - os: ubuntu-22.04-arm
             platform: linux
             arch: arm64
+            ext: ""
           - os: macos-latest
             platform: macos
             arch: arm64
+            ext: ""
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -60,6 +63,82 @@ jobs:
         working-directory: ./adnmb-backup-web
         run: pnpm build
 
+      - name: Generate SEA blob
+        working-directory: ./adnmb-backup-web
+        run: node --experimental-sea-config sea-config.json
+
+      - name: Install postject
+        working-directory: ./adnmb-backup-web
+        run: pnpm install -g postject
+
+      - name: Add signtool to PATH (Windows)
+        if: matrix.platform == 'win'
+        uses: KamaranL/add-signtool-action@v1
+        id: signtool
+
+      - name: Create Node.js executable copy (Windows)
+        if: matrix.platform == 'win'
+        working-directory: ./adnmb-backup-web
+        shell: powershell
+        run: |
+          $nodePath = (Get-Command node).Source
+          Copy-Item $nodePath "adnmb-backup-web${{ matrix.ext }}"
+
+      - name: Create Node.js executable copy (Unix)
+        if: matrix.platform != 'win'
+        working-directory: ./adnmb-backup-web
+        run: |
+          cp $(which node) adnmb-backup-web${{ matrix.ext }}
+
+      - name: Remove signature (Windows)
+        if: matrix.platform == 'win'
+        working-directory: ./adnmb-backup-web
+        shell: powershell
+        continue-on-error: true
+        run: |
+          Write-Host "Removing signature from adnmb-backup-web${{ matrix.ext }}"
+          signtool remove /s "adnmb-backup-web${{ matrix.ext }}"
+          Write-Host "Signature removed successfully"
+
+      - name: Remove signature (macOS)
+        if: matrix.platform == 'macos'
+        working-directory: ./adnmb-backup-web
+        continue-on-error: true
+        run: |
+          codesign --remove-signature "adnmb-backup-web${{ matrix.ext }}" || echo "Failed to remove signature - continuing..."
+
+      - name: Inject SEA blob (macOS)
+        if: matrix.platform == 'macos'
+        working-directory: ./adnmb-backup-web
+        run: npx postject "adnmb-backup-web${{ matrix.ext }}" NODE_SEA_BLOB sea-prep.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2 --macho-segment-name NODE_SEA
+
+      - name: Inject SEA blob (Linux/Windows)
+        if: matrix.platform != 'macos'
+        working-directory: ./adnmb-backup-web
+        run: npx postject "adnmb-backup-web${{ matrix.ext }}" NODE_SEA_BLOB sea-prep.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
+
+      - name: Make executable (Unix)
+        if: matrix.platform != 'win'
+        working-directory: ./adnmb-backup-web
+        run: chmod +x adnmb-backup-web${{ matrix.ext }}
+
+      - name: Sign binary (Windows)
+        if: matrix.platform == 'win'
+        working-directory: ./adnmb-backup-web
+        shell: powershell
+        continue-on-error: true
+        run: |
+          Write-Host "Attempting to sign adnmb-backup-web${{ matrix.ext }}"
+          signtool sign /fd SHA256 "adnmb-backup-web${{ matrix.ext }}"
+          Write-Host "Binary signed successfully"
+
+      - name: Sign binary (macOS)
+        if: matrix.platform == 'macos'
+        working-directory: ./adnmb-backup-web
+        continue-on-error: true
+        run: |
+          codesign --sign - "adnmb-backup-web${{ matrix.ext }}" || echo "Signing failed - continuing..."
+
       - name: Create build archive
         shell: bash
         run: |
@@ -73,11 +152,35 @@ jobs:
             exit 1
           fi
 
+      - name: Create SEA archive
+        shell: bash
+        run: |
+          cd adnmb-backup-web
+          if [ -f "adnmb-backup-web${{ matrix.ext }}" ]; then
+            tar -czf "../adnmb-backup-web-sea-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz" "adnmb-backup-web${{ matrix.ext }}"
+          else
+            echo "SEA executable not found"
+            ls -la
+            exit 1
+          fi
+
+      - name: Clean up intermediate files
+        working-directory: ./adnmb-backup-web
+        run: |
+          rm -f sea-prep.blob
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: adnmb-backup-web-${{ matrix.platform }}-${{ matrix.arch }}
           path: adnmb-backup-web-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz
+          retention-days: 30
+
+      - name: Upload SEA artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: adnmb-backup-web-sea-${{ matrix.platform }}-${{ matrix.arch }}
+          path: adnmb-backup-web-sea-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz
           retention-days: 30
 
   release:
@@ -106,7 +209,7 @@ jobs:
 
       - name: Upload Release Assets
         run: |
-          for file in artifacts/*/adnmb-backup-web-*.tar.gz; do
+          for file in artifacts/*/adnmb-backup-web*.tar.gz; do
             if [ -f "$file" ]; then
               filename=$(basename "$file")
               echo "Uploading $filename"
