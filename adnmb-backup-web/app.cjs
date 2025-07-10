@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { pathToFileURL } = require('url');
 const path = require('path');
 
