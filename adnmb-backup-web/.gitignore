@@ -26,3 +26,5 @@ output/*.txt
 output/*.md
 cache/*.json
 proxy.txt
+
+*.exe

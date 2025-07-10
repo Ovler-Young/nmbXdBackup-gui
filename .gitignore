@@ -355,3 +355,5 @@ MigrationBackup/
 # sensitive data
 cookie.txt
 uuid.txt
+
+*.exe
