@@ -144,8 +144,10 @@ jobs:
         run: |
           cd adnmb-backup-web
           if [ -d "build" ]; then
-            # Node adapter creates a build directory with the full application
-            tar -czf "../adnmb-backup-web-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz" build/
+            # Create a directory to organize files for the artifact
+            mkdir -p ../build-artifact
+            # Copy the build directory
+            cp -r build ../build-artifact/
           else
             echo "Build directory not found"
             ls -la
@@ -157,27 +159,21 @@ jobs:
         run: |
           cd adnmb-backup-web
           if [ -f "adnmb-backup-web${{ matrix.ext }}" ]; then
-            # Create a temporary directory to organize files for the archive
-            mkdir -p sea-archive
+            # Create a directory to organize files for the artifact
+            mkdir -p ../sea-artifact
             
             # Copy the SEA executable
-            cp "adnmb-backup-web${{ matrix.ext }}" sea-archive/
+            cp "adnmb-backup-web${{ matrix.ext }}" ../sea-artifact/
             
             # Copy package.json if it exists
             if [ -f "package.json" ]; then
-              cp package.json sea-archive/
+              cp package.json ../sea-artifact/
             fi
             
             # Copy build directory if it exists
             if [ -d "build" ]; then
-              cp -r build sea-archive/
+              cp -r build ../sea-artifact/
             fi
-            
-            # Create the archive from the organized directory
-            tar -czf "../adnmb-backup-web-sea-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz" -C sea-archive .
-            
-            # Clean up temporary directory
-            rm -rf sea-archive
           else
             echo "SEA executable not found"
             ls -la
@@ -201,14 +197,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: adnmb-backup-web-${{ matrix.platform }}-${{ matrix.arch }}
-          path: adnmb-backup-web-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz
+          path: build-artifact/
           retention-days: 30
 
       - name: Upload SEA artifacts
         uses: actions/upload-artifact@v4
         with:
           name: adnmb-backup-web-sea-${{ matrix.platform }}-${{ matrix.arch }}
-          path: adnmb-backup-web-sea-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz
+          path: sea-artifact/
           retention-days: 30
 
   release:
@@ -237,17 +233,41 @@ jobs:
 
       - name: Upload Release Assets
         run: |
-          for file in artifacts/*/adnmb-backup-web*.tar.gz; do
-            if [ -f "$file" ]; then
-              filename=$(basename "$file")
-              echo "Uploading $filename"
+          # Upload zip files for build artifacts
+          for artifact_dir in artifacts/adnmb-backup-web-*; do
+            if [ -d "$artifact_dir" ] && [[ ! "$artifact_dir" == *"-sea-"* ]]; then
+              artifact_name=$(basename "$artifact_dir")
+              zip_filename="${artifact_name}.zip"
+              echo "Creating and uploading $zip_filename"
+              cd "$artifact_dir"
+              zip -r "../../$zip_filename" .
+              cd ../../
               curl -L \
                 -X POST \
                 -H "Accept: application/vnd.github+json" \
                 -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
                 -H "Content-Type: application/octet-stream" \
-                "${{ steps.create_release.outputs.upload_url }}?name=$filename" \
-                --data-binary "@$file"
+                "${{ steps.create_release.outputs.upload_url }}?name=$zip_filename" \
+                --data-binary "@$zip_filename"
+            fi
+          done
+          
+          # Upload zip files for SEA artifacts
+          for artifact_dir in artifacts/adnmb-backup-web-sea-*; do
+            if [ -d "$artifact_dir" ]; then
+              artifact_name=$(basename "$artifact_dir")
+              zip_filename="${artifact_name}.zip"
+              echo "Creating and uploading $zip_filename"
+              cd "$artifact_dir"
+              zip -r "../../$zip_filename" .
+              cd ../../
+              curl -L \
+                -X POST \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Content-Type: application/octet-stream" \
+                "${{ steps.create_release.outputs.upload_url }}?name=$zip_filename" \
+                --data-binary "@$zip_filename"
             fi
           done
 
