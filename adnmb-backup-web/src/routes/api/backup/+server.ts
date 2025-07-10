@@ -57,14 +57,17 @@ export const POST: RequestHandler = async ({ request }) => {
 	const apiBaseUrl = getApiBaseUrl();
 	const domain = getDomainFromUrl(apiBaseUrl);
 
-	const headers = {
+	const headers: Record<string, string> = {
 		Host: domain,
 		Accept: 'application/json',
 		'Accept-Encoding': 'gzip',
 		'User-Agent':
-			'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.0.0 Safari/537.36',
-		Cookie: `userhash=${cookie}`
+			'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.0.0 Safari/537.36'
 	};
+
+	if (cookie) {
+		headers.Cookie = `userhash=${cookie}`;
+	}
 
 	const firstPageUrl = `${apiBaseUrl}/Api/thread?id=${threadId}&page=1`;
 
