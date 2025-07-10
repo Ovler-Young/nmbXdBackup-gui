@@ -1,11 +1,19 @@
 <script lang="ts">
-	import { writable } from 'svelte/store';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import SvelteMarkdown from '@humanspeak/svelte-markdown';
 	import { onMount } from 'svelte';
+
+	// Thread interface
+	interface CachedThread {
+		id: string;
+		title: string;
+		replyCount: number;
+		author: string;
+		lastReplyTime: string;
+	}
 
 	// State management
 	let threadId = '';
@@ -14,7 +22,7 @@
 	let messageTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	// Cached threads
-	let cachedThreads: any[] = [];
+	let cachedThreads: CachedThread[] = [];
 	let loadingCache = false;
 	let sortBy = 'lastReply'; // 'lastReply' or 'threadId'
 
@@ -219,11 +227,6 @@
 		markdownContent = '';
 	}
 
-	// Format date
-	function formatDate(dateString: string) {
-		return new Date(dateString).toLocaleString('zh-CN');
-	}
-
 	// Format last reply time
 	function formatLastReplyTime(timeString: string) {
 		return new Date(timeString).toLocaleString('zh-CN');
@@ -338,7 +341,7 @@
 								</tr>
 							</thead>
 							<tbody>
-								{#each cachedThreads as thread}
+								{#each cachedThreads as thread (thread.id)}
 									<tr class="border-border hover:bg-muted/50 border-b transition-colors">
 										<td class="px-4 py-3">
 											<div class="flex items-center gap-2">
