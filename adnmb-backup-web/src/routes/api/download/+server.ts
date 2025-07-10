@@ -69,19 +69,34 @@ export const POST: RequestHandler = async ({ request }) => {
 			}
 		}
 
-		// Read and return file content
-		const fileContent = fs.readFileSync(outputPath, 'utf-8');
+		// Read file content as buffer to preserve encoding
+		const fileBuffer = fs.readFileSync(outputPath);
+		const fileContent = fileBuffer.toString('utf-8');
 
-		return json({
-			success: true,
-			filename,
-			content: fileContent,
-			size: fileContent.length,
-			threadId,
-			title,
-			format,
-			mode
-		});
+		// Determine content type based on format
+		const contentType =
+			format === 'markdown' ? 'text/markdown; charset=utf-8' : 'text/plain; charset=utf-8';
+
+		return json(
+			{
+				success: true,
+				filename,
+				content: fileContent,
+				size: fileContent.length,
+				threadId,
+				title,
+				format,
+				mode,
+				contentType,
+				encoding: 'utf-8'
+			},
+			{
+				headers: {
+					'Content-Type': 'application/json; charset=utf-8',
+					'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`
+				}
+			}
+		);
 	} catch (error) {
 		console.error('Download error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
