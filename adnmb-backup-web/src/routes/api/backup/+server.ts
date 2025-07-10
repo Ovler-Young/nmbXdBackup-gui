@@ -8,39 +8,17 @@ import {
 	convertToMarkdown,
 	convertToMarkdownPoOnly
 } from '../../../lib/converter';
-
-const proxyPath = path.resolve('proxy.txt');
-const proxyExists = fs.existsSync(proxyPath);
-
-const getApiBaseUrl = () => {
-	if (proxyExists) {
-		const url = fs.readFileSync(proxyPath, 'utf-8').trim();
-		return url.endsWith('/') ? url.slice(0, -1) : url;
-	}
-	return 'https://api.nmb.best';
-};
-
-const getCookie = () => {
-	const cookiePath = path.resolve('cookie.txt');
-	if (fs.existsSync(cookiePath)) {
-		return fs.readFileSync(cookiePath, 'utf-8').trim();
-	}
-	return null;
-};
-
-const getDomainFromUrl = (url: string) => {
-	try {
-		const uri = new URL(url);
-		return uri.hostname;
-	} catch {
-		return 'api.nmb.best'; // Fallback to default
-	}
-};
-
-const fetchPage = async (url: string, headers: Record<string, string>) => {
-	const response = await fetch(url, { headers });
-	return response.json();
-};
+import {
+	getApiBaseUrl,
+	getCookie,
+	getDomainFromUrl,
+	createHeaders
+} from '../../../lib/utils/config';
+import {
+	fetchPage,
+	fetchPagesInParallel,
+	type PageData
+} from '../../../lib/services/backup-service';
 
 export const POST: RequestHandler = async ({ request }) => {
 	const { threadId } = await request.json();
@@ -50,58 +28,41 @@ export const POST: RequestHandler = async ({ request }) => {
 	}
 
 	const cookie = getCookie();
+	const apiBaseUrl = getApiBaseUrl();
+	const proxyExists = fs.existsSync(path.resolve('proxy.txt'));
+
 	if (!cookie && !proxyExists) {
 		return json({ message: 'cookie.txt not found' }, { status: 400 });
 	}
 
-	const apiBaseUrl = getApiBaseUrl();
 	const domain = getDomainFromUrl(apiBaseUrl);
-
-	const headers: Record<string, string> = {
-		Host: domain,
-		Accept: 'application/json',
-		'Accept-Encoding': 'gzip',
-		'User-Agent':
-			'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.0.0 Safari/537.36'
-	};
-
-	if (cookie) {
-		headers.Cookie = `userhash=${cookie}`;
-	}
-
+	const headers = createHeaders(domain, cookie);
 	const firstPageUrl = `${apiBaseUrl}/Api/thread?id=${threadId}&page=1`;
+	const cacheDir = path.resolve('cache');
+	const cachePath = path.join(cacheDir, `${threadId}.json`);
 
 	try {
-		const firstPageData = await fetchPage(firstPageUrl, headers);
-		const replyCount = parseInt(firstPageData.ReplyCount, 10);
-		let pageCount = Math.floor(replyCount / 19);
-		if (replyCount % 19 !== 0) {
-			pageCount++;
+		let threadData: PageData;
+
+		if (fs.existsSync(cachePath)) {
+			// Incremental backup: read from cache and only fetch new pages
+			threadData = await performIncrementalBackup(
+				cachePath,
+				firstPageUrl,
+				headers,
+				apiBaseUrl,
+				threadId
+			);
+		} else {
+			// Full backup: fetch everything
+			threadData = await performFullBackup(firstPageUrl, headers, apiBaseUrl, threadId);
 		}
 
-		const allReplies = [...firstPageData.Replies];
-
-		if (pageCount > 1) {
-			const pagePromises = [];
-			for (let page = 2; page <= pageCount; page++) {
-				const pageUrl = `${apiBaseUrl}/Api/thread?id=${threadId}&page=${page}`;
-				pagePromises.push(fetchPage(pageUrl, headers));
-			}
-			const subsequentPagesData = await Promise.all(pagePromises);
-			for (const pageData of subsequentPagesData) {
-				allReplies.push(...pageData.Replies);
-			}
-		}
-
-		firstPageData.Replies = allReplies;
-
-		const cacheDir = path.resolve('cache');
+		// Save to cache
 		if (!fs.existsSync(cacheDir)) {
 			fs.mkdirSync(cacheDir);
 		}
-
-		const cachePath = path.join(cacheDir, `${threadId}.json`);
-		fs.writeFileSync(cachePath, JSON.stringify(firstPageData, null, 4));
+		fs.writeFileSync(cachePath, JSON.stringify(threadData, null, 4));
 
 		convertToText(threadId);
 		convertToTextPoOnly(threadId);
@@ -116,3 +77,79 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json({ message: 'An unknown error occurred' }, { status: 500 });
 	}
 };
+
+// Helper function for incremental backup
+async function performIncrementalBackup(
+	cachePath: string,
+	firstPageUrl: string,
+	headers: Record<string, string>,
+	apiBaseUrl: string,
+	threadId: string
+): Promise<PageData> {
+	const cachedData = JSON.parse(fs.readFileSync(cachePath, 'utf-8')) as PageData;
+	const replyCountInCache = parseInt(cachedData.ReplyCount, 10);
+	let pageCountInCache = Math.floor(replyCountInCache / 19);
+	if (replyCountInCache % 19 !== 0) {
+		pageCountInCache++;
+	}
+
+	// Remove the last page from cache to avoid duplication
+	const lastPageStartIndex = (pageCountInCache - 1) * 19;
+	const cachedReplies = cachedData.Replies.filter((_, index) => index < lastPageStartIndex);
+
+	// Get current thread info
+	const firstPageData = await fetchPage(firstPageUrl, headers);
+	const currentReplyCount = parseInt(firstPageData.ReplyCount, 10);
+	let currentPageCount = Math.floor(currentReplyCount / 19);
+	if (currentReplyCount % 19 !== 0) {
+		currentPageCount++;
+	}
+
+	const allReplies = [...cachedReplies];
+
+	// Only fetch additional pages if there are new ones
+	if (currentPageCount >= pageCountInCache) {
+		const additionalReplies = await fetchPagesInParallel(
+			apiBaseUrl,
+			headers,
+			threadId,
+			pageCountInCache,
+			currentPageCount
+		);
+		allReplies.push(...additionalReplies);
+	}
+
+	firstPageData.Replies = allReplies;
+	return firstPageData;
+}
+
+// Helper function for full backup
+async function performFullBackup(
+	firstPageUrl: string,
+	headers: Record<string, string>,
+	apiBaseUrl: string,
+	threadId: string
+): Promise<PageData> {
+	const firstPageData = await fetchPage(firstPageUrl, headers);
+	const replyCount = parseInt(firstPageData.ReplyCount, 10);
+	let pageCount = Math.floor(replyCount / 19);
+	if (replyCount % 19 !== 0) {
+		pageCount++;
+	}
+
+	const allReplies = [...firstPageData.Replies];
+
+	if (pageCount > 1) {
+		const additionalReplies = await fetchPagesInParallel(
+			apiBaseUrl,
+			headers,
+			threadId,
+			2,
+			pageCount
+		);
+		allReplies.push(...additionalReplies);
+	}
+
+	firstPageData.Replies = allReplies;
+	return firstPageData;
+}
