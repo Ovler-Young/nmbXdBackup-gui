@@ -189,6 +189,8 @@ export const convertThread = (options: ConversionOptions): void => {
 		content += formatReply(reply, format, isPo);
 	}
 
+	// no single \n
+	content = content.replace(/\n/g, '\n\n');
 	// Clean up excessive newlines
 	content = content.replace(/\n{3,}/g, '\n\n');
 
