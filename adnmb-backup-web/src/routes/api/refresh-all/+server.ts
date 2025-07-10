@@ -17,51 +17,18 @@ import {
 	initializeFeed,
 	subscribeToFeed
 } from '../../../lib/utils/feed-utils';
-
-const fetchPage = async (url: string, headers: Record<string, string>) => {
-	const response = await fetch(url, { headers });
-	return response.json();
-};
+import { backupThread } from '../../../lib/services/backup-service';
 
 const updateSingleThread = async (
 	threadId: string,
 	headers: Record<string, string>,
 	apiBaseUrl: string
 ) => {
-	const firstPageUrl = `${apiBaseUrl}/Api/thread?id=${threadId}&page=1`;
-
 	try {
-		const firstPageData = await fetchPage(firstPageUrl, headers);
-		const replyCount = parseInt(firstPageData.ReplyCount, 10);
-		let pageCount = Math.floor(replyCount / 19);
-		if (replyCount % 19 !== 0) {
-			pageCount++;
-		}
+		// Use the unified backup function that handles incremental updates
+		await backupThread(threadId, apiBaseUrl, headers);
 
-		const allReplies = [...firstPageData.Replies];
-
-		if (pageCount > 1) {
-			const pagePromises = [];
-			for (let page = 2; page <= pageCount; page++) {
-				const pageUrl = `${apiBaseUrl}/Api/thread?id=${threadId}&page=${page}`;
-				pagePromises.push(fetchPage(pageUrl, headers));
-			}
-			const subsequentPagesData = await Promise.all(pagePromises);
-			for (const pageData of subsequentPagesData) {
-				allReplies.push(...pageData.Replies);
-			}
-		}
-
-		firstPageData.Replies = allReplies;
-
-		const cacheDir = path.resolve('cache');
-		if (!fs.existsSync(cacheDir)) {
-			fs.mkdirSync(cacheDir);
-		}
-
-		const cachePath = path.join(cacheDir, `${threadId}.json`);
-		fs.writeFileSync(cachePath, JSON.stringify(firstPageData, null, 4));
-
+		// Convert to various formats
 		convertToText(threadId);
 		convertToTextPoOnly(threadId);
 		convertToMarkdown(threadId);
