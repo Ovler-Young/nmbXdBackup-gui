@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import * as fs from 'fs';
 import * as path from 'path';
+import { convertThread } from '../../../lib/converter';
 
 export const POST: RequestHandler = async ({ request }) => {
 	try {
@@ -50,19 +51,13 @@ export const POST: RequestHandler = async ({ request }) => {
 		const outputPath = path.resolve('output', filename);
 
 		if (!fs.existsSync(outputPath)) {
-			// File doesn't exist, try to generate it
-			const converterModule = await import('../../../lib/converter');
-
+			// File doesn't exist, generate it using the new converter
 			try {
-				if (format === 'text' && mode === 'all') {
-					converterModule.convertToText(threadId);
-				} else if (format === 'text' && mode === 'po') {
-					converterModule.convertToTextPoOnly(threadId);
-				} else if (format === 'markdown' && mode === 'all') {
-					converterModule.convertToMarkdown(threadId);
-				} else if (format === 'markdown' && mode === 'po') {
-					converterModule.convertToMarkdownPoOnly(threadId);
-				}
+				convertThread({
+					threadId,
+					format: format as 'text' | 'markdown',
+					poOnly: mode === 'po'
+				});
 
 				// Check if file was created
 				if (!fs.existsSync(outputPath)) {

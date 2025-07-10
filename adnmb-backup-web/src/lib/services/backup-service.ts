@@ -149,7 +149,8 @@ export const backupThread = async (
 	threadId: string,
 	apiBaseUrl: string,
 	headers: Record<string, string>,
-	cacheDir: string = 'cache'
+	cacheDir: string = 'cache',
+	autoConvert: boolean = false
 ): Promise<PageData> => {
 	const cachePath = path.join(path.resolve(cacheDir), `${threadId}.json`);
 	const firstPageUrl = `${apiBaseUrl}/Api/thread?id=${threadId}&page=1`;
@@ -175,6 +176,17 @@ export const backupThread = async (
 		fs.mkdirSync(path.resolve(cacheDir));
 	}
 	fs.writeFileSync(cachePath, JSON.stringify(threadData, null, 4));
+
+	// Only convert formats if explicitly requested
+	if (autoConvert) {
+		const { convertToText, convertToTextPoOnly, convertToMarkdown, convertToMarkdownPoOnly } =
+			await import('../converter');
+
+		convertToText(threadId);
+		convertToTextPoOnly(threadId);
+		convertToMarkdown(threadId);
+		convertToMarkdownPoOnly(threadId);
+	}
 
 	return threadData;
 };

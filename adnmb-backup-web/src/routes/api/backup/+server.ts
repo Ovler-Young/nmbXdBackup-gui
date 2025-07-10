@@ -3,12 +3,6 @@ import type { RequestHandler } from './$types';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
-	convertToText,
-	convertToTextPoOnly,
-	convertToMarkdown,
-	convertToMarkdownPoOnly
-} from '../../../lib/converter';
-import {
 	getApiBaseUrl,
 	getCookie,
 	getDomainFromUrl,
@@ -35,14 +29,8 @@ export const POST: RequestHandler = async ({ request }) => {
 	const headers = createHeaders(domain, cookie);
 
 	try {
-		// Use the unified backup function
-		await backupThread(threadId, apiBaseUrl, headers);
-
-		// Convert to various formats
-		convertToText(threadId);
-		convertToTextPoOnly(threadId);
-		convertToMarkdown(threadId);
-		convertToMarkdownPoOnly(threadId);
+		// Use the unified backup function with auto conversion enabled
+		await backupThread(threadId, apiBaseUrl, headers, 'cache', true);
 
 		return json({ message: `Backup for thread ${threadId} successful` });
 	} catch (error) {

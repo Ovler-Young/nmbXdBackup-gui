@@ -2,12 +2,6 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import * as fs from 'fs';
 import * as path from 'path';
-import {
-	convertToText,
-	convertToTextPoOnly,
-	convertToMarkdown,
-	convertToMarkdownPoOnly
-} from '../../../lib/converter';
 import { getCookie, getDomainFromUrl } from '../../../lib/utils/config';
 import {
 	getOrCreateUUID,
@@ -25,14 +19,8 @@ const updateSingleThread = async (
 	apiBaseUrl: string
 ) => {
 	try {
-		// Use the unified backup function that handles incremental updates
-		await backupThread(threadId, apiBaseUrl, headers);
-
-		// Convert to various formats
-		convertToText(threadId);
-		convertToTextPoOnly(threadId);
-		convertToMarkdown(threadId);
-		convertToMarkdownPoOnly(threadId);
+		// Use the unified backup function without auto conversion for better performance
+		await backupThread(threadId, apiBaseUrl, headers, 'cache', false);
 
 		return { success: true, threadId };
 	} catch (error) {
