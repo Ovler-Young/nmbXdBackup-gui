@@ -157,7 +157,27 @@ jobs:
         run: |
           cd adnmb-backup-web
           if [ -f "adnmb-backup-web${{ matrix.ext }}" ]; then
-            tar -czf "../adnmb-backup-web-sea-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz" "adnmb-backup-web${{ matrix.ext }}"
+            # Create a temporary directory to organize files for the archive
+            mkdir -p sea-archive
+            
+            # Copy the SEA executable
+            cp "adnmb-backup-web${{ matrix.ext }}" sea-archive/
+            
+            # Copy package.json if it exists
+            if [ -f "package.json" ]; then
+              cp package.json sea-archive/
+            fi
+            
+            # Copy build directory if it exists
+            if [ -d "build" ]; then
+              cp -r build sea-archive/
+            fi
+            
+            # Create the archive from the organized directory
+            tar -czf "../adnmb-backup-web-sea-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz" -C sea-archive .
+            
+            # Clean up temporary directory
+            rm -rf sea-archive
           else
             echo "SEA executable not found"
             ls -la
