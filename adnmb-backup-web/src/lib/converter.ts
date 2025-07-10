@@ -30,7 +30,7 @@ export const convertToText = (id: string) => {
 	const cachePath = path.resolve('cache', `${id}.json`);
 	const jo = JSON.parse(fs.readFileSync(cachePath, 'utf-8'));
 	let sb = '';
-	sb += `${jo.user_hash}  ${jo.now}  No.${jo.id}\n`;
+	sb += `${jo.user_hash}  ${jo.now}  No.${jo.id}\n\n`;
 	const savepath = generateSavepath(id, jo.title, '.txt', false);
 	if (jo.title !== '无标题') {
 		sb += `标题:${jo.title}\n`;
@@ -42,6 +42,7 @@ export const convertToText = (id: string) => {
 		sb += `${ja[i].user_hash}  ${ja[i].now}  No.${ja[i].id}\n`;
 		sb += `${contentProcess(ja[i].content)}\n`;
 	}
+	sb = sb.replace(/\n{3,}/g, '\n\n');
 	fs.writeFileSync(savepath, sb, 'utf-8');
 };
 
@@ -50,7 +51,7 @@ export const convertToTextPoOnly = (id: string) => {
 	const poPath = path.resolve('po', `${id}.txt`);
 	const jo = JSON.parse(fs.readFileSync(cachePath, 'utf-8'));
 	let sb = '';
-	sb += `${jo.user_hash}  ${jo.now}  No.${jo.id}\n`;
+	sb += `${jo.user_hash}  ${jo.now}  No.${jo.id}\n\n`;
 	const savepath = generateSavepath(id, jo.title, '.txt', true);
 	if (jo.title !== '无标题') {
 		sb += `标题:${jo.title}\n`;
@@ -72,6 +73,7 @@ export const convertToTextPoOnly = (id: string) => {
 			sb += `${contentProcess(ja[i].content)}\n`;
 		}
 	}
+	sb = sb.replace(/\n{3,}/g, '\n\n');
 	fs.writeFileSync(savepath, sb, 'utf-8');
 };
 
@@ -87,7 +89,7 @@ export const convertToMarkdown = (id: string) => {
 		sb += `# ${jo.id}\n\n`;
 	}
 	if (jo.name !== '无名氏' && jo.name !== '') {
-		sb += `**${jo.name}**\n`;
+		sb += `**${jo.name}**\n\n`;
 	}
 	sb += `No.${jo.id}  ${jo.user_hash}  ${jo.now}\n`;
 	if (jo.img !== '') {
@@ -140,6 +142,7 @@ export const convertToMarkdown = (id: string) => {
 				.replace(/<\/small>/g, '`')
 		)}\n`;
 	}
+	sb = sb.replace(/\n{3,}/g, '\n\n');
 	fs.writeFileSync(savepath, sb, 'utf-8');
 };
 
@@ -155,7 +158,7 @@ export const convertToMarkdownPoOnly = (id: string) => {
 		sb += `\n# ${jo.id}\n\n`;
 	}
 	if (jo.name !== '无名氏' && jo.name !== '') {
-		sb += `**${jo.name}**\n`;
+		sb += `**${jo.name}**\n\n`;
 	}
 	sb += `No.${jo.id}  ${jo.user_hash}  ${jo.now}\n`;
 	if (jo.img !== '') {
@@ -202,5 +205,6 @@ export const convertToMarkdownPoOnly = (id: string) => {
 			)}\n`;
 		}
 	}
+	sb = sb.replace(/\n{3,}/g, '\n\n');
 	fs.writeFileSync(savepath, sb, 'utf-8');
 };
