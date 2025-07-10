@@ -1,0 +1,273 @@
+name: Web Build
+
+on:
+  push:
+    branches: [ '*' ]
+    paths:
+      - 'adnmb-backup-web/**'
+      - '.github/workflows/web.yml'
+  pull_request:
+    branches: [ '*' ]
+    paths:
+      - 'adnmb-backup-web/**'
+      - '.github/workflows/web.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win
+            arch: x64
+            ext: .exe
+          - os: ubuntu-latest
+            platform: linux
+            arch: x64
+            ext: ""
+          - os: ubuntu-22.04-arm
+            platform: linux
+            arch: arm64
+            ext: ""
+          - os: macos-latest
+            platform: macos
+            arch: arm64
+            ext: ""
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        working-directory: ./adnmb-backup-web
+        run: pnpm install --frozen-lockfile
+
+      - name: Check Project
+        working-directory: ./adnmb-backup-web
+        run: pnpm check
+
+      - name: Build project
+        working-directory: ./adnmb-backup-web
+        run: pnpm build
+
+      - name: Generate SEA blob
+        working-directory: ./adnmb-backup-web
+        run: node --experimental-sea-config sea-config.json
+
+      - name: Install postject
+        working-directory: ./adnmb-backup-web
+        run: pnpm install -g postject
+
+      - name: Add signtool to PATH (Windows)
+        if: matrix.platform == 'win'
+        uses: KamaranL/add-signtool-action@v1
+        id: signtool
+
+      - name: Create Node.js executable copy (Windows)
+        if: matrix.platform == 'win'
+        working-directory: ./adnmb-backup-web
+        shell: powershell
+        run: |
+          $nodePath = (Get-Command node).Source
+          Copy-Item $nodePath "adnmb-backup-web${{ matrix.ext }}"
+
+      - name: Create Node.js executable copy (Unix)
+        if: matrix.platform != 'win'
+        working-directory: ./adnmb-backup-web
+        run: |
+          cp $(which node) adnmb-backup-web${{ matrix.ext }}
+
+      - name: Remove signature (Windows)
+        if: matrix.platform == 'win'
+        working-directory: ./adnmb-backup-web
+        shell: powershell
+        continue-on-error: true
+        run: |
+          Write-Host "Removing signature from adnmb-backup-web${{ matrix.ext }}"
+          signtool remove /s "adnmb-backup-web${{ matrix.ext }}"
+          Write-Host "Signature removed successfully"
+
+      - name: Remove signature (macOS)
+        if: matrix.platform == 'macos'
+        working-directory: ./adnmb-backup-web
+        continue-on-error: true
+        run: |
+          codesign --remove-signature "adnmb-backup-web${{ matrix.ext }}" || echo "Failed to remove signature - continuing..."
+
+      - name: Inject SEA blob (macOS)
+        if: matrix.platform == 'macos'
+        working-directory: ./adnmb-backup-web
+        run: npx postject "adnmb-backup-web${{ matrix.ext }}" NODE_SEA_BLOB sea-prep.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2 --macho-segment-name NODE_SEA
+
+      - name: Inject SEA blob (Linux/Windows)
+        if: matrix.platform != 'macos'
+        working-directory: ./adnmb-backup-web
+        run: npx postject "adnmb-backup-web${{ matrix.ext }}" NODE_SEA_BLOB sea-prep.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
+
+      - name: Make executable (Unix)
+        if: matrix.platform != 'win'
+        working-directory: ./adnmb-backup-web
+        run: chmod +x adnmb-backup-web${{ matrix.ext }}
+
+      - name: Sign binary (Windows)
+        if: matrix.platform == 'win'
+        working-directory: ./adnmb-backup-web
+        shell: powershell
+        continue-on-error: true
+        run: |
+          Write-Host "Attempting to sign adnmb-backup-web${{ matrix.ext }}"
+          signtool sign /fd SHA256 "adnmb-backup-web${{ matrix.ext }}"
+          Write-Host "Binary signed successfully"
+
+      - name: Sign binary (macOS)
+        if: matrix.platform == 'macos'
+        working-directory: ./adnmb-backup-web
+        continue-on-error: true
+        run: |
+          codesign --sign - "adnmb-backup-web${{ matrix.ext }}" || echo "Signing failed - continuing..."
+
+      - name: Create build archive
+        shell: bash
+        run: |
+          cd adnmb-backup-web
+          if [ -d "build" ]; then
+            # Create a directory to organize files for the artifact
+            mkdir -p ../build-artifact
+            # Copy the build directory
+            cp -r build ../build-artifact/
+          else
+            echo "Build directory not found"
+            ls -la
+            exit 1
+          fi
+
+      - name: Create SEA archive
+        shell: bash
+        run: |
+          cd adnmb-backup-web
+          if [ -f "adnmb-backup-web${{ matrix.ext }}" ]; then
+            # Create a directory to organize files for the artifact
+            mkdir -p ../sea-artifact
+            
+            # Copy the SEA executable
+            cp "adnmb-backup-web${{ matrix.ext }}" ../sea-artifact/
+            
+            # Copy package.json if it exists
+            if [ -f "package.json" ]; then
+              cp package.json ../sea-artifact/
+            fi
+            
+            # Copy build directory if it exists
+            if [ -d "build" ]; then
+              cp -r build ../sea-artifact/
+            fi
+          else
+            echo "SEA executable not found"
+            ls -la
+            exit 1
+          fi
+
+      - name: Clean up intermediate files (Windows)
+        if: matrix.platform == 'win'
+        working-directory: ./adnmb-backup-web
+        shell: powershell
+        run: |
+          Remove-Item -Path "sea-prep.blob" -Force -ErrorAction SilentlyContinue
+
+      - name: Clean up intermediate files (Unix)
+        if: matrix.platform != 'win'
+        working-directory: ./adnmb-backup-web
+        run: |
+          rm -f sea-prep.blob
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: adnmb-backup-web-${{ matrix.platform }}-${{ matrix.arch }}
+          path: build-artifact/
+          retention-days: 30
+
+      - name: Upload SEA artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: adnmb-backup-web-sea-${{ matrix.platform }}-${{ matrix.arch }}
+          path: sea-artifact/
+          retention-days: 30
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Display structure of downloaded files
+        run: ls -R artifacts/
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: web-${{ github.sha }}
+          release_name: Web Build ${{ github.sha }}
+          draft: false
+          prerelease: true
+
+      - name: Upload Release Assets
+        run: |
+          # Upload zip files for build artifacts
+          for artifact_dir in artifacts/adnmb-backup-web-*; do
+            if [ -d "$artifact_dir" ] && [[ ! "$artifact_dir" == *"-sea-"* ]]; then
+              artifact_name=$(basename "$artifact_dir")
+              zip_filename="${artifact_name}.zip"
+              echo "Creating and uploading $zip_filename"
+              cd "$artifact_dir"
+              zip -r "../../$zip_filename" .
+              cd ../../
+              curl -L \
+                -X POST \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Content-Type: application/octet-stream" \
+                "${{ steps.create_release.outputs.upload_url }}?name=$zip_filename" \
+                --data-binary "@$zip_filename"
+            fi
+          done
+          
+          # Upload zip files for SEA artifacts
+          for artifact_dir in artifacts/adnmb-backup-web-sea-*; do
+            if [ -d "$artifact_dir" ]; then
+              artifact_name=$(basename "$artifact_dir")
+              zip_filename="${artifact_name}.zip"
+              echo "Creating and uploading $zip_filename"
+              cd "$artifact_dir"
+              zip -r "../../$zip_filename" .
+              cd ../../
+              curl -L \
+                -X POST \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Content-Type: application/octet-stream" \
+                "${{ steps.create_release.outputs.upload_url }}?name=$zip_filename" \
+                --data-binary "@$zip_filename"
+            fi
+          done
+
