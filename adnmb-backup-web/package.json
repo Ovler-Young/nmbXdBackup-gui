@@ -55,7 +55,10 @@
 	"pnpm": {
 		"onlyBuiltDependencies": [
 			"esbuild"
-		]
+		],
+		"overrides": {
+			"cookie@<0.7.0": ">=0.7.0"
+		}
 	},
 	"dependencies": {
 		"@humanspeak/svelte-markdown": "^0.8.7"
