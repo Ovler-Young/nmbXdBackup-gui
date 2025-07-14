@@ -40,12 +40,17 @@ export const POST: RequestHandler = async ({ request }) => {
 		const ext = format === 'text' ? '.txt' : '.md';
 		const suffix = mode === 'po' ? '_po_only' : '';
 
-		// Generate filename
-		let filename = title !== '无标题' ? title.replace(/[\\/:*?"<>|]/g, '_') : threadId;
-		if (filename.length > 100) {
-			filename = filename.substring(0, 100);
+		// Generate filename consistent with converter.ts
+		let filename: string;
+		if (title !== '无标题') {
+			let cleanTitle = title.replace(/[\\/:*?"<>|]/g, '_');
+			if (cleanTitle.length > 100) {
+				cleanTitle = cleanTitle.substring(0, 100);
+			}
+			filename = `${threadId}_${cleanTitle}${suffix}${ext}`;
+		} else {
+			filename = `${threadId}${suffix}${ext}`;
 		}
-		filename = `${threadId}_${filename}${suffix}${ext}`;
 
 		// Find the output file
 		const outputPath = path.resolve('output', filename);
