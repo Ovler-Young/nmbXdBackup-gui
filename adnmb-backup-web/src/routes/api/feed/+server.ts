@@ -1,12 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import {
-	getOrCreateUUID,
-	getApiBaseUrl,
-	proxyExists,
-	fetchFeedPage,
-	fetchFeedData
-} from '../../../lib/utils/feed-utils';
+import { getOrCreateUUID, fetchFeedPage, fetchFeedData } from '../../../lib/utils/feed-utils';
+import { getApiBaseUrl, proxyExists } from '../../../lib/utils/config';
 
 export const GET: RequestHandler = async ({ url }) => {
 	try {

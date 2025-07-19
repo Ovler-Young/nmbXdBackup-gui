@@ -67,6 +67,7 @@
 	},
 	"dependencies": {
 		"@humanspeak/svelte-markdown": "^0.8.7",
+		"dotenv": "^17.2.0",
 		"uuid": "^11.1.0"
 	}
 }

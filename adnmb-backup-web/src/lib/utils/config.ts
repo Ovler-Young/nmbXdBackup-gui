@@ -1,20 +1,30 @@
-import * as fs from 'fs';
-import * as path from 'path';
+import { config } from 'dotenv';
+
+config();
 
 export const getApiBaseUrl = (): string => {
-	const proxyPath = path.resolve('proxy.txt');
-	if (fs.existsSync(proxyPath)) {
-		const url = fs.readFileSync(proxyPath, 'utf-8').trim();
+	// Environment variable takes priority
+	const envProxy = process.env.ADNMB_PROXY;
+	if (envProxy) {
+		const url = envProxy.trim();
 		return url.endsWith('/') ? url.slice(0, -1) : url;
 	}
+
 	return 'https://api.nmb.best';
 };
 
+export function proxyExists(): boolean {
+	const apiBaseUrl = getApiBaseUrl();
+	return apiBaseUrl !== 'https://api.nmb.best';
+}
+
 export const getCookie = (): string | null => {
-	const cookiePath = path.resolve('cookie.txt');
-	if (fs.existsSync(cookiePath)) {
-		return fs.readFileSync(cookiePath, 'utf-8').trim();
+	// Environment variable takes priority
+	const envCookie = process.env.ADNMB_COOKIE;
+	if (envCookie) {
+		return envCookie.trim();
 	}
+
 	return null;
 };
 

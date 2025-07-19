@@ -1,7 +1,5 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import * as fs from 'fs';
-import * as path from 'path';
 import {
 	getApiBaseUrl,
 	getCookie,
@@ -19,10 +17,10 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	const cookie = getCookie();
 	const apiBaseUrl = getApiBaseUrl();
-	const proxyExists = fs.existsSync(path.resolve('proxy.txt'));
+	const proxyExists = apiBaseUrl !== 'https://api.nmb.best';
 
 	if (!cookie && !proxyExists) {
-		return json({ message: 'cookie.txt not found' }, { status: 400 });
+		return json({ message: 'Proxy or Cookie should be set' }, { status: 400 });
 	}
 
 	const domain = getDomainFromUrl(apiBaseUrl);

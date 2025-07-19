@@ -2,15 +2,14 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import * as fs from 'fs';
 import * as path from 'path';
-import { getCookie, getDomainFromUrl } from '../../../lib/utils/config';
+import { getApiBaseUrl, getCookie, getDomainFromUrl, proxyExists } from '../../../lib/utils/config';
 import {
 	getOrCreateUUID,
-	getApiBaseUrl,
-	proxyExists,
 	fetchFeedData,
 	initializeFeed,
 	subscribeToFeed
 } from '../../../lib/utils/feed-utils';
+
 import { backupThread } from '../../../lib/services/backup-service';
 
 const updateSingleThread = async (
@@ -37,7 +36,7 @@ export const POST: RequestHandler = async () => {
 	const hasProxy = proxyExists();
 
 	if (!cookie && !hasProxy) {
-		return json({ message: 'cookie.txt not found' }, { status: 400 });
+		return json({ message: 'Proxy or Cookie should be set' }, { status: 400 });
 	}
 
 	const apiBaseUrl = getApiBaseUrl();

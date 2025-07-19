@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { proxyExists } from './config';
 
 // UUID 管理
 export function generateUUID(): string {
@@ -17,20 +18,6 @@ export function getOrCreateUUID(): string {
 	const newUUID = generateUUID();
 	fs.writeFileSync(uuidPath, newUUID);
 	return newUUID;
-}
-
-// API 配置工具
-export function getApiBaseUrl(): string {
-	const proxyPath = path.resolve('proxy.txt');
-	if (fs.existsSync(proxyPath)) {
-		const url = fs.readFileSync(proxyPath, 'utf-8').trim();
-		return url.endsWith('/') ? url.slice(0, -1) : url;
-	}
-	return 'https://api.nmb.best';
-}
-
-export function proxyExists(): boolean {
-	return fs.existsSync(path.resolve('proxy.txt'));
 }
 
 // Feed 数据类型定义
